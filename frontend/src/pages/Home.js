@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import CreatePost from "../components/CreatePost";
 import Post from "../components/Post";
-import axiosInstance from "../utils/axios";  // Add this import
+import Header from "../components/Header"; // Import the Header component
+import axiosInstance from "../utils/axios";
 
 function Home() {
   const [posts, setPosts] = useState([]);
@@ -45,17 +46,20 @@ function Home() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <CreatePost onPostCreated={handlePostCreated} />
-      {posts.map((post) => (
-        <Post
-          key={post.id}
-          post={post}
-          onPostDeleted={handlePostDeleted}
-          onPostUpdated={handlePostUpdated}
-        />
-      ))}
-    </div>
+    <>
+      <Header />
+      <div className="max-w-2xl mx-auto py-8 px-4">
+        <CreatePost onPostCreated={handlePostCreated} />
+        {posts.map((post) => (
+          <Post
+            key={post.id}
+            post={post}
+            onPostDeleted={handlePostDeleted}
+            onPostUpdated={handlePostUpdated}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
