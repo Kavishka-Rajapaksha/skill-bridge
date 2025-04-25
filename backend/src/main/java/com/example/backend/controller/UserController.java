@@ -48,4 +48,14 @@ public class UserController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @PutMapping("/{userId}/promote-to-admin")
+    public ResponseEntity<?> promoteToAdmin(@PathVariable String userId) {
+        try {
+            User updatedUser = userService.promoteUserToAdmin(userId);
+            return ResponseEntity.ok(updatedUser);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

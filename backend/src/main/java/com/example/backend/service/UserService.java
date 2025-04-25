@@ -98,4 +98,14 @@ public class UserService {
             .map(post -> postService.convertToPostResponse(post))
             .collect(Collectors.toList());
     }
+    
+    public User promoteUserToAdmin(String userId) {
+        User user = getUserById(userId);
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+        
+        user.setRole("ROLE_ADMIN");
+        return userRepository.save(user);
+    }
 }

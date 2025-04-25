@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/auth/register").permitAll() // Explicitly permit registration
                         .requestMatchers("/api/auth/login").permitAll() // Explicitly permit login
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN") // Secure admin endpoints
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api/media/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
