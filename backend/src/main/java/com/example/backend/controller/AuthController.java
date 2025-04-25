@@ -9,15 +9,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.backend.model.User;
 import com.example.backend.service.AuthService;
+import com.example.backend.service.GoogleAuthService;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" }) // Add port 3002
+@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
 public class AuthController {
     private final AuthService authService;
+    private final GoogleAuthService googleAuthService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, GoogleAuthService googleAuthService) {
         this.authService = authService;
+        this.googleAuthService = googleAuthService;
     }
 
     @PostMapping("/register")
@@ -34,6 +37,16 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
         try {
             User user = authService.loginUser(loginRequest.getEmail(), loginRequest.getPassword());
+            return ResponseEntity.ok(user);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @PostMapping("/google")
+    public ResponseEntity<?> googleAuth(@RequestBody GoogleAuthRequest request) {
+        try {
+            User user = googleAuthService.authenticateGoogleUser(request.getIdToken());
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -60,5 +73,18 @@ class LoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+}
+
+class GoogleAuthRequest {
+    private String idToken;
+    
+    // Getters and Setters
+    public String getIdToken() {
+        return idToken;
+    }
+    
+    public void setIdToken(String idToken) {
+        this.idToken = idToken;
     }
 }
