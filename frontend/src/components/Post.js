@@ -10,6 +10,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [deleting, setDeleting] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [mediaUrls, setMediaUrls] = useState({});
+  const [mediaErrors, setMediaErrors] = useState({});
   const user = JSON.parse(localStorage.getItem("user"));
 
   const formatDate = (dateString) => {
@@ -26,42 +27,58 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   // Fetch media as a blob and create object URL
   const getMediaUrl = async (mediaId, originalUrl) => {
     try {
+      // Check if media type is known
+      const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
+
       const response = await axiosInstance.get(`/api/media/${mediaId}`, {
         responseType: "blob",
       });
-      if (response.data instanceof Blob) {
+
+      if (response.data && response.data.url) {
+        // New format where response.data contains { url, type, size }
+        return response.data.url;
+      } else if (response.data instanceof Blob && response.data.size > 0) {
+        // Fallback for direct blob responses
         return URL.createObjectURL(response.data);
       }
-      console.warn(`Invalid blob for media ${mediaId}, using fallback URL`);
+
+      console.warn(
+        `Invalid or empty media data for ${mediaId}, using fallback URL`
+      );
       return getFullUrl(originalUrl);
     } catch (error) {
       console.error(`Error loading media ${mediaId}:`, error);
-      return getFullUrl(originalUrl); // Fallback to original URL
+      setMediaErrors((prev) => ({ ...prev, [mediaId]: true }));
+      return getFullUrl(originalUrl);
     }
   };
 
   // Load all media URLs
   useEffect(() => {
-    const newMediaUrls = {};
     const loadMedia = async () => {
+      const newMediaUrls = {};
 
       // Handle video
       if (post.videoUrl) {
         const mediaId = post.videoUrl.split("/").pop();
-        newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
+        try {
+          newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
+        } catch (error) {
+          console.error("Failed to load video:", error);
+        }
       }
 
       // Handle images
       if (post.imageUrls?.length) {
-        const imagePromises = post.imageUrls.map(async (url) => {
+        for (const url of post.imageUrls) {
           const mediaId = url.split("/").pop();
-          const mediaUrl = await getMediaUrl(mediaId, url);
-          return { mediaId, mediaUrl };
-        });
-        const resolvedImages = await Promise.all(imagePromises);
-        resolvedImages.forEach(({ mediaId, mediaUrl }) => {
-          newMediaUrls[mediaId] = mediaUrl;
-        });
+          try {
+            const mediaUrl = await getMediaUrl(mediaId, url);
+            newMediaUrls[mediaId] = mediaUrl;
+          } catch (error) {
+            console.error("Failed to load image:", error);
+          }
+        }
       }
 
       setMediaUrls(newMediaUrls);
@@ -71,8 +88,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
     // Cleanup object URLs
     return () => {
-      Object.values(newMediaUrls).forEach((url) => {
-        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      Object.values(mediaUrls).forEach((url) => {
+        if (url && typeof url === "string" && url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
       });
     };
   }, [post.videoUrl, post.imageUrls]);
@@ -119,9 +138,13 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       formData.append("content", editContent);
       editImages.forEach((image) => formData.append("images", image));
 
-      const response = await axiosInstance.put(`/api/posts/${post.id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await axiosInstance.put(
+        `/api/posts/${post.id}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
 
       onPostUpdated?.(response.data);
       setIsEditing(false);
@@ -277,7 +300,8 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                 preload="metadata"
                 onError={(e) => {
                   console.error("Video loading error:", e);
-                  e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlZpZGVvIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
+                  e.target.src =
+                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlZpZGVvIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
                 }}
               />
             </div>
@@ -293,7 +317,8 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                 className="max-h-96 object-contain mb-4 w-full"
                 onError={(e) => {
                   console.error("Image failed to load:", url);
-                  e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
+                  e.target.src =
+                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
                 }}
               />
             );
