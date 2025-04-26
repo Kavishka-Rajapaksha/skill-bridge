@@ -56,7 +56,7 @@ public class PostService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 
-    private PostResponse convertToPostResponse(Post post) {
+    public PostResponse convertToPostResponse(Post post) {
         PostResponse response = new PostResponse(post);
         User user = getUserDetails(post.getUserId());
         response.setUserName(user.getFirstName() + " " + user.getLastName());
