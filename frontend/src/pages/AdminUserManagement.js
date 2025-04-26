@@ -100,30 +100,28 @@ function AdminUserManagement() {
         { headers: { 'Content-Type': 'application/json' } }
       );
       
-      if (response.data) {
-        // Update UI with new role
-        setUsers(users.map(user => 
-          user.id === userId ? { ...user, role: newRole } : user
-        ));
-        
-        // Show success message
-        const successMessage = isCurrentlyAdmin 
-          ? "User has been demoted to regular user successfully!" 
-          : "User has been promoted to admin successfully!";
-        
-        setSuccess(successMessage);
-        setError("");
-        
-        // Refresh data after a delay
-        setTimeout(() => {
-          fetchUsers();
-        }, 1000);
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSuccess("");
-        }, 3000);
-      }
+      // Update UI immediately regardless of refresh function
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      ));
+      
+      // Show success message
+      const successMessage = isCurrentlyAdmin 
+        ? "User has been demoted to regular user successfully!" 
+        : "User has been promoted to admin successfully!";
+      
+      setSuccess(successMessage);
+      setError("");
+      
+      // Optional refresh - don't rely on this for UI updates
+      setTimeout(() => {
+        fetchUsers();
+      }, 1000);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (error) {
       console.error("Error updating user role:", error);
       
@@ -172,37 +170,160 @@ function AdminUserManagement() {
 
   const handleConfirmDelete = async () => {
     try {
-      await axiosInstance.delete(`/api/admin/users/${deleteDialog.userId}`);
-      setUsers(users.filter(user => user.id !== deleteDialog.userId));
-      setDeleteDialog({ isOpen: false, userId: null });
+      // Set loading state or indicator if needed
+      setError("");
+      
+      console.log(`Attempting to delete user with ID: ${deleteDialog.userId}`);
+      
+      // Add proper error handling and make sure the URL is correct
+      const response = await axiosInstance.delete(`/api/admin/users/${deleteDialog.userId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          // Include auth token if your API requires it and it's not in the axiosInstance defaults
+        }
+      });
+      
+      console.log("Delete response:", response);
+      
+      // Check if the delete was successful based on your API's response structure
+      if (response.status === 200 || response.status === 204) {
+        // Update UI by removing the deleted user
+        setUsers(users.filter(user => user.id !== deleteDialog.userId));
+        
+        // Show success message
+        setSuccess("User has been deleted successfully!");
+        
+        // Close dialog
+        setDeleteDialog({ isOpen: false, userId: null });
+        
+        // Optional: refresh the users list to ensure UI is in sync with backend
+        setTimeout(() => {
+          fetchUsers();
+        }, 1000);
+      } else {
+        throw new Error("Unexpected response status: " + response.status);
+      }
     } catch (error) {
       console.error("Error deleting user:", error);
-      setError("Failed to delete user. Please try again.");
+      
+      let errorMessage = "Failed to delete user. Please try again.";
+      
+      if (error.response) {
+        console.log("Delete error response:", error.response);
+        
+        if (error.response.status === 404) {
+          errorMessage = "User not found. The user may have been deleted already.";
+        } else if (error.response.data) {
+          if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          } else if (error.response.data.message) {
+            errorMessage = error.response.data.message;
+          }
+        }
+      }
+      
+      setError(errorMessage);
       setDeleteDialog({ isOpen: false, userId: null });
     }
   };
 
   const openEditDialog = (userData) => {
+    // Create a deep copy to avoid reference issues
+    const userDataCopy = JSON.parse(JSON.stringify(userData));
+    
+    console.log("Opening edit dialog with user data:", userDataCopy);
+    
     setEditDialog({
       isOpen: true,
-      userData: { ...userData },
+      userData: userDataCopy,
     });
   };
 
   const handleUpdateUser = async (e) => {
     e.preventDefault();
+    setError("");
+    
+    // Validate form data
+    if (!editDialog.userData.firstName || !editDialog.userData.lastName || !editDialog.userData.email) {
+      setError("Please fill out all required fields.");
+      return;
+    }
     
     try {
-      const response = await axiosInstance.put(`/api/admin/users/${editDialog.userData.id}`, editDialog.userData);
+      // Add debugging information
+      console.log(`Attempting to update user: ${editDialog.userData.id}`);
       
+      // Create a clean user object with only the fields needed for update
+      // Include all required fields that the backend expects
+      const userUpdateData = {
+        firstName: editDialog.userData.firstName,
+        lastName: editDialog.userData.lastName,
+        email: editDialog.userData.email,
+        role: editDialog.userData.role,
+        enabled: editDialog.userData.enabled
+      };
+      
+      console.log('Update payload:', userUpdateData);
+
+      // Make request without stringifying the JSON - axios does this automatically
+      const response = await axiosInstance.put(
+        `/api/admin/users/${editDialog.userData.id}`, 
+        userUpdateData,
+        { 
+          headers: { 
+            'Content-Type': 'application/json'
+          } 
+        }
+      );
+      
+      // Log success
+      console.log('Update successful:', response.data);
+      
+      // Update users state with the response data
       setUsers(users.map(user => 
         user.id === editDialog.userData.id ? response.data : user
       ));
       
+      // Show success message
+      setSuccess("User updated successfully!");
+      
+      // Clear error message
+      setError("");
+      
+      // Close dialog
       setEditDialog({ isOpen: false, userData: null });
+      
+      // Refresh users list to get updated data
+      fetchUsers();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (error) {
       console.error("Error updating user:", error);
-      setError("Failed to update user. Please try again.");
+      
+      let errorMessage = "Failed to update user. Please try again.";
+      
+      if (error.response) {
+        console.log('Error response:', error.response);
+        
+        if (error.response.status === 404) {
+          errorMessage = "User not found. The user may have been deleted or you may need to refresh the page.";
+          
+          // Refresh user list to get updated data
+          fetchUsers();
+        } else if (error.response.data) {
+          // Try to extract the most helpful error message
+          if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          } else if (error.response.data.message) {
+            errorMessage = error.response.data.message;
+          }
+        }
+      }
+      
+      setError(errorMessage);
     }
   };
 
