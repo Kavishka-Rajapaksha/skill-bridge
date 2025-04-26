@@ -11,5 +11,5 @@ public interface PostRepository extends MongoRepository<Post, String> {
 
     List<Post> findByUserIdOrderByCreatedAtDesc(String userId);
     
-    long countByCreatedAtGreaterThan(Date date);
+    int countByCreatedAtGreaterThanEqual(Date date);
 }
