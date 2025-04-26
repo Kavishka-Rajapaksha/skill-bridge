@@ -3,6 +3,7 @@ package com.example.backend.controller;
 import com.example.backend.model.User;
 import com.example.backend.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,7 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/users")
 @CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
 public class UserController {
-
+    
     @Autowired
     private UserService userService;
 
@@ -49,11 +50,50 @@ public class UserController {
         }
     }
 
+    @PutMapping("/{userId}/update-role")
+    public ResponseEntity<?> updateUserRole(@PathVariable String userId, @RequestBody RoleUpdateRequest request) {
+        try {
+            // Log the request for debugging
+            System.out.println("Updating role for user: " + userId + " to: " + request.getRole());
+            
+            User user = userService.getUserById(userId);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+            }
+            
+            // Validate the role
+            String newRole = request.getRole();
+            if (!newRole.equals("ROLE_USER") && !newRole.equals("ROLE_ADMIN")) {
+                return ResponseEntity.badRequest().body("Invalid role: " + newRole);
+            }
+            
+            // Update the user role
+            user.setRole(newRole);
+            User updatedUser = userService.saveUser(user);
+            return ResponseEntity.ok(updatedUser);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    // Keep this method for backward compatibility but have it use the update-role endpoint
     @PutMapping("/{userId}/promote-to-admin")
     public ResponseEntity<?> promoteToAdmin(@PathVariable String userId) {
         try {
-            User updatedUser = userService.promoteUserToAdmin(userId);
-            return ResponseEntity.ok(updatedUser);
+            RoleUpdateRequest request = new RoleUpdateRequest("ROLE_ADMIN");
+            return updateUserRole(userId, request);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    // Keep this method for backward compatibility but have it use the update-role endpoint
+    @PutMapping("/{userId}/demote-to-user")
+    public ResponseEntity<?> demoteToUser(@PathVariable String userId) {
+        try {
+            RoleUpdateRequest request = new RoleUpdateRequest("ROLE_USER");
+            return updateUserRole(userId, request);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

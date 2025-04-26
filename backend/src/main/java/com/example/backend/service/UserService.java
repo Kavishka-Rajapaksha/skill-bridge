@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class UserService {
-
+    
     @Autowired
     private UserRepository userRepository;
     
@@ -99,13 +99,22 @@ public class UserService {
             .collect(Collectors.toList());
     }
     
-    public User promoteUserToAdmin(String userId) {
+    public User updateUserRole(String userId, String newRole) {
         User user = getUserById(userId);
         if (user == null) {
             throw new RuntimeException("User not found");
         }
         
-        user.setRole("ROLE_ADMIN");
+        // Validate the role
+        if (!newRole.equals("ROLE_USER") && !newRole.equals("ROLE_ADMIN")) {
+            throw new IllegalArgumentException("Invalid role: " + newRole);
+        }
+        
+        user.setRole(newRole);
+        return userRepository.save(user);
+    }
+
+    public User saveUser(User user) {
         return userRepository.save(user);
     }
 }

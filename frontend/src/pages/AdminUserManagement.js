@@ -7,6 +7,7 @@ function AdminUserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(""); // Add success state for messages
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, userId: null, currentStatus: false });
@@ -86,20 +87,70 @@ function AdminUserManagement() {
     setConfirmDialog({ isOpen: false, userId: null, currentStatus: false });
   };
 
-  const handlePromoteToAdmin = async (userId) => {
+  const handlePromoteToAdmin = async (userId, currentRole) => {
     try {
-      await axiosInstance.put(`/api/admin/users/${userId}/promote`);
-      setUsers(users.map(user => 
-        user.id === userId ? {...user, role: 'ROLE_ADMIN'} : user
-      ));
+      const isCurrentlyAdmin = currentRole === "ROLE_ADMIN";
+      const newRole = isCurrentlyAdmin ? "ROLE_USER" : "ROLE_ADMIN";
+      
+      console.log(`Updating role for user ID: ${userId} from ${currentRole} to ${newRole}`);
+      
+      // Use a single, reliable endpoint with proper error handling
+      const response = await axiosInstance.put(`/api/admin/users/${userId}/role`, 
+        { role: newRole },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      
+      if (response.data) {
+        // Update UI with new role
+        setUsers(users.map(user => 
+          user.id === userId ? { ...user, role: newRole } : user
+        ));
+        
+        // Show success message
+        const successMessage = isCurrentlyAdmin 
+          ? "User has been demoted to regular user successfully!" 
+          : "User has been promoted to admin successfully!";
+        
+        setSuccess(successMessage);
+        setError("");
+        
+        // Refresh data after a delay
+        setTimeout(() => {
+          fetchUsers();
+        }, 1000);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccess("");
+        }, 3000);
+      }
     } catch (error) {
-      console.error("Error promoting user:", error);
-      setError("Failed to promote user. Please try again.");
+      console.error("Error updating user role:", error);
+      
+      let errorMessage = "Failed to update user role.";
+      
+      if (error.response) {
+        if (error.response.status === 404) {
+          errorMessage = "User not found or endpoint not available. Please check if the backend server is running.";
+        } else if (error.response.status === 403 || error.response.status === 401) {
+          errorMessage = "You don't have permission to change user roles.";
+        } else if (error.response.data) {
+          // Try to extract the most helpful error message
+          if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          } else if (error.response.data.message) {
+            errorMessage = error.response.data.message;
+          }
+        }
+      } else if (error.request) {
+        errorMessage = "No response received from the server. Please check your network connection.";
+      }
+      
+      setError(errorMessage);
     }
   };
 
   const openRoleConfirmation = (userId, currentRole) => {
-    if (currentRole === "ROLE_ADMIN") return; // Don't allow changing admin roles
     setRoleDialog({
       isOpen: true,
       userId,
@@ -108,7 +159,7 @@ function AdminUserManagement() {
   };
 
   const handleConfirmRoleChange = () => {
-    handlePromoteToAdmin(roleDialog.userId);
+    handlePromoteToAdmin(roleDialog.userId, roleDialog.currentRole);
     setRoleDialog({ isOpen: false, userId: null, currentRole: "" });
   };
 
@@ -322,6 +373,21 @@ function AdminUserManagement() {
                 </div>
               )}
               
+              {success && (
+                <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-green-700">{success}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="bg-white shadow overflow-hidden sm:rounded-md">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -446,10 +512,12 @@ function AdminUserManagement() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
           <div className="relative mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3 text-center">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Promote User</h3>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Change User Role</h3>
               <div className="mt-2 px-7 py-3">
                 <p className="text-sm text-gray-500">
-                  Do you want to promote this user to Admin?
+                  {roleDialog.currentRole === "ROLE_ADMIN"
+                    ? "Do you want to change this admin to a regular user?"
+                    : "Do you want to promote this user to Admin?"}
                 </p>
               </div>
               <div className="items-center px-4 py-3 flex justify-center space-x-4">
@@ -465,7 +533,7 @@ function AdminUserManagement() {
                   className="px-4 py-2 bg-blue-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none"
                   onClick={handleConfirmRoleChange}
                 >
-                  Yes, Promote
+                  {roleDialog.currentRole === "ROLE_ADMIN" ? "Yes, Change to User" : "Yes, Promote to Admin"}
                 </button>
               </div>
             </div>

@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Logger;
 
 @RestController
@@ -49,6 +51,39 @@ public class AdminController {
             User user = adminService.toggleUserStatus(userId);
             return ResponseEntity.ok(user);
         } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    /**
+     * Update user role endpoint
+     */
+    @PutMapping("/users/{userId}/role")
+    public ResponseEntity<?> updateUserRole(@PathVariable String userId, @RequestBody Map<String, String> payload) {
+        try {
+            logger.info("Updating role for user: " + userId);
+            
+            // Extract role from payload
+            String role = payload.get("role");
+            if (role == null || (!role.equals("ROLE_USER") && !role.equals("ROLE_ADMIN"))) {
+                return ResponseEntity.badRequest().body("Invalid role specified");
+            }
+            
+            // Find the user by ID
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (!userOpt.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found with ID: " + userId);
+            }
+            
+            // Update the user's role
+            User user = userOpt.get();
+            user.setRole(role);
+            User updatedUser = userRepository.save(user);
+            
+            // Return sanitized user object (remove sensitive info)
+            return ResponseEntity.ok(sanitizeUserForResponse(updatedUser));
+        } catch (Exception e) {
+            logger.severe("Error updating user role: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }

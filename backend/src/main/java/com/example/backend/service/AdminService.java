@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -92,5 +93,36 @@ public class AdminService {
         // Don't set password
         
         return sanitizedUser;
+    }
+
+    /**
+     * Get user by ID
+     */
+    public User getUserById(String userId) {
+        try {
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                return user;
+            }
+            logger.warning("User not found with ID: " + userId);
+            return null;
+        } catch (Exception e) {
+            logger.severe("Error finding user by ID: " + userId + ", Error: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Save user
+     */
+    public User saveUser(User user) {
+        try {
+            User savedUser = userRepository.save(user);
+            return sanitizeUserForResponse(savedUser);
+        } catch (Exception e) {
+            logger.severe("Error saving user: " + e.getMessage());
+            throw e;
+        }
     }
 }
