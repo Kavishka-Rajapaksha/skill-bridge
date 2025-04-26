@@ -44,13 +44,22 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll() 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/auth/register").permitAll() // Explicitly permit registration
+                        .requestMatchers("/api/auth/login").permitAll() // Explicitly permit login
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN") // Secure admin endpoints
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api/media/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception.authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(403);
+                    response.getWriter().write("{\"error\":\"Access denied\",\"message\":\"" + 
+                        authException.getMessage().replace("\"", "'") + "\"}");
+                }));
 
         return http.build();
     }
@@ -66,7 +75,8 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:3001",
-                "http://localhost:3002"));
+                "http://localhost:3002"
+        ));
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList(
@@ -74,10 +84,13 @@ public class SecurityConfig {
                 "Content-Type",
                 "Accept",
                 "Origin",
-                "userId",
                 "X-Requested-With",
                 "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"));
+                "Access-Control-Request-Headers",
+                "Cache-Control",
+                "Pragma",
+                "If-Modified-Since",
+                "If-None-Match"));
         configuration.setExposedHeaders(Arrays.asList(
                 "Authorization",
                 "Content-Disposition",

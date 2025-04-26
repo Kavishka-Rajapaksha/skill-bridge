@@ -56,7 +56,7 @@ public class PostService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 
-    private PostResponse convertToPostResponse(Post post) {
+    public PostResponse convertToPostResponse(Post post) {
         PostResponse response = new PostResponse(post);
         User user = getUserDetails(post.getUserId());
         response.setUserName(user.getFirstName() + " " + user.getLastName());
@@ -91,6 +91,7 @@ public class PostService {
                 String videoId = saveMedia(video, "video");
                 mediaIds.add(videoId);
                 post.setVideoUrl("/api/media/" + videoId); // URL for retrieval
+                post.addMediaType(videoId, "video/" + video.getContentType().split("/")[1]); // Store content type
 
                 // Save to local storage
                 saveToLocalStorage(video, videoId);
@@ -104,6 +105,7 @@ public class PostService {
                     }
                     String imageId = saveMedia(image, "image");
                     mediaIds.add(imageId);
+                    post.addMediaType(imageId, image.getContentType()); // Store content type
 
                     // Save to local storage
                     saveToLocalStorage(image, imageId);
