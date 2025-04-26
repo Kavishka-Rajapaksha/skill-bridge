@@ -47,7 +47,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedHeaders("*")
                 .exposedHeaders(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
                         HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES,
-                        HttpHeaders.CONTENT_TYPE)
+                        HttpHeaders.CONTENT_TYPE, "userid")
                 .allowCredentials(true)
                 .maxAge(3600);
     }

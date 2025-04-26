@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api.media/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api/media/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
@@ -66,8 +66,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:3001",
-                "http://localhost:3002" // Add this new origin
-        ));
+                "http://localhost:3002"));
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList(
@@ -75,13 +74,10 @@ public class SecurityConfig {
                 "Content-Type",
                 "Accept",
                 "Origin",
+                "userId",
                 "X-Requested-With",
                 "Access-Control-Request-Method",
-                "Access-Control-Request-Headers",
-                "Cache-Control",
-                "Pragma",
-                "If-Modified-Since",
-                "If-None-Match"));
+                "Access-Control-Request-Headers"));
         configuration.setExposedHeaders(Arrays.asList(
                 "Authorization",
                 "Content-Disposition",
