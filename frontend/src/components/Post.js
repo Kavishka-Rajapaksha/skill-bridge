@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
+import Comments from "./Comments";
 
 function Post({ post, onPostDeleted, onPostUpdated }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -11,6 +12,9 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [updating, setUpdating] = useState(false);
   const [mediaUrls, setMediaUrls] = useState({});
   const [mediaErrors, setMediaErrors] = useState({});
+  const [showComments, setShowComments] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
   const user = JSON.parse(localStorage.getItem("user"));
 
   const formatDate = (dateString) => {
@@ -157,6 +161,18 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleCommentClick = () => {
+    setShowComments(!showComments);
+    // Show comment input only when opening comments for the first time
+    if (!showComments) {
+      setShowCommentInput(true);
+    }
+  };
+
+  const handleCommentCountChange = (newCount) => {
+    setCommentCount(newCount);
   };
 
   return (
@@ -341,7 +357,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
               </svg>
               <span>{post.likes}</span>
             </button>
-            <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500">
+            <button
+              onClick={handleCommentClick}
+              className={`flex items-center space-x-2 ${
+                showComments
+                  ? "text-blue-500"
+                  : "text-gray-500 hover:text-blue-500"
+              }`}
+            >
               <svg
                 className="w-6 h-6"
                 fill="none"
@@ -355,7 +378,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                   d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
-              <span>{post.comments?.length || 0}</span>
+              <span>{commentCount}</span>
             </button>
             <button className="flex items-center space-x-2 text-gray-500 hover:text-green-500">
               <svg
@@ -373,6 +396,17 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
               </svg>
             </button>
           </div>
+
+          {showComments && (
+            <div className="mt-4 border-t pt-4">
+              <Comments
+                postId={post.id}
+                postOwnerId={post.userId}
+                showInput={showCommentInput}
+                onCommentCountChange={handleCommentCountChange}
+              />
+            </div>
+          )}
         </>
       )}
     </div>

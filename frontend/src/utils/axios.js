@@ -16,9 +16,8 @@ axiosInstance.interceptors.request.use(
     try {
       const user = JSON.parse(localStorage.getItem("user"));
 
-      // Add auth headers for all requests
-      if (user?.email && user?.rawPassword) {
-        const credentials = btoa(`${user.email}:${user.rawPassword}`);
+      if (user?.id && user?.password) {
+        const credentials = btoa(`${user.email}:${user.password}`);
         config.headers.Authorization = `Basic ${credentials}`;
       }
 
@@ -27,11 +26,9 @@ axiosInstance.interceptors.request.use(
         config.responseType = "blob";
         config.headers = {
           ...config.headers,
-          Authorization: config.headers.Authorization, // Keep auth header
           Accept: "*/*",
           "Cache-Control": "no-cache",
           Pragma: "no-cache",
-          "X-Requested-With": "XMLHttpRequest",
         };
       }
 
@@ -91,6 +88,9 @@ axiosInstance.interceptors.response.use(
       }
     } else if (error.response?.status === 403) {
       console.error("Authentication error:", error);
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    } else if (error.response?.status === 401) {
       localStorage.removeItem("user");
       window.location.href = "/login";
     }
