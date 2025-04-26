@@ -13,6 +13,27 @@ import org.springframework.web.multipart.MultipartFile;
 @CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
 public class UserController {
     
+    // Static inner class to handle role update requests
+    public static class RoleUpdateRequest {
+        private String role;
+        
+        // Default constructor needed for JSON deserialization
+        public RoleUpdateRequest() {
+        }
+        
+        public RoleUpdateRequest(String role) {
+            this.role = role;
+        }
+        
+        public String getRole() {
+            return role;
+        }
+        
+        public void setRole(String role) {
+            this.role = role;
+        }
+    }
+    
     @Autowired
     private UserService userService;
 
