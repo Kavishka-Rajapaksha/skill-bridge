@@ -47,7 +47,7 @@ function AdminDashboard() {
     try {
       // Make separate API calls to handle potential failures individually
       let userStats = { total: 0, newToday: 0, active: 0 };
-      let postStats = { total: 0 };odayTotal: 0 };
+      let postStats = { total: 0, todayTotal: 0 };
       let recentUsersData = [];
       let recentPostsData = [];
       
@@ -183,76 +183,112 @@ function AdminDashboard() {
       }
       
       try {
+        // Get general post stats
         const postsRes = await axiosInstance.get("/api/admin/stats/posts");
-        postStats = postsRes.data;osInstance.get("/api/admin/stats/posts");
-      } catch (postError) {.data === 'object') {
-        console.error("Error fetching post stats:", postError);
-      } }
+        if (typeof postsRes.data === 'object') {
+          postStats.total = postsRes.data.total || 0;
+        }
         
-      try {Specifically get today's posts count
-        const recentUsersRes = await axiosInstance.get("/api/admin/users/recent");y");
-        recentUsersData = recentUsersRes.data;nse:", todayPostsRes.data);
-      } catch (userError) {
-        console.error("Error fetching recent users:", userError);es.data.count !== undefined) {
-      }   postStats.todayTotal = todayPostsRes.data.count;
+        // Specifically get today's posts count
+        const todayPostsRes = await axiosInstance.get("/api/admin/stats/posts/today");
+        console.log("Today's posts stats response:", todayPostsRes.data);
+        
+        if (typeof todayPostsRes.data === 'object' && todayPostsRes.data.count !== undefined) {
+          postStats.todayTotal = todayPostsRes.data.count;
         } else if (typeof todayPostsRes.data === 'number') {
-      try {ostStats.todayTotal = todayPostsRes.data;
+          postStats.todayTotal = todayPostsRes.data;
+        } else if (Array.isArray(todayPostsRes.data)) {
+          postStats.todayTotal = todayPostsRes.data.length;
+        }
+      } catch (postError) {
+        console.error("Error fetching post stats:", postError);
+        // Try alternative endpoint for today's posts if the specific endpoint fails
+        try {
+          const allPostsRes = await axiosInstance.get("/api/admin/posts");
+          if (Array.isArray(allPostsRes.data)) {
+            // Filter posts created today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const todayPosts = allPostsRes.data.filter(post => {
+              const postDate = new Date(post.createdAt);
+              return postDate >= today;
+            });
+            
+            postStats.todayTotal = todayPosts.length;
+            console.log("Calculated today's posts from all posts:", postStats.todayTotal);
+          }
+        } catch (err) {
+          console.error("Failed to calculate today's posts:", err);
+        }
+      }
+      
+      try {
+        const recentUsersRes = await axiosInstance.get("/api/admin/users/recent");
+        recentUsersData = recentUsersRes.data;
+      } catch (userError) {
+        console.error("Error fetching recent users:", userError);
+      }
+      
+      try {
         const recentPostsRes = await axiosInstance.get("/api/admin/posts/recent");
-        recentPostsData = recentPostsRes.data;.data.length;
+        recentPostsData = recentPostsRes.data;
       } catch (postError) {
         console.error("Error fetching recent posts:", postError);
-      } console.error("Error fetching post stats:", postError);
-        // Try alternative endpoint for today's posts if the specific endpoint fails
+      }
+
       setStats({
-        totalUsers: userStats.total,axiosInstance.get("/api/admin/posts");
-        totalPosts: postStats.total,Res.data)) {
+        totalUsers: userStats.total,
+        totalPosts: postStats.total,
         newUsersToday: userStats.newToday,
-        activeUsers: userStats.active
-      });   today.setHours(0, 0, 0, 0);
-            
-      setRecentUsers(recentUsersData);sRes.data.filter(post => {
-      setRecentPosts(recentPostsData);e(post.createdAt);
-    } catch (error) {postDate >= today;
+        activeUsers: userStats.active,
+        todayPosts: postStats.todayTotal
+      });
+      
+      setRecentUsers(recentUsersData);
+      setRecentPosts(recentPostsData);
+    } catch (error) {
       console.error("Error fetching dashboard data:", error);
       // Use placeholder data as fallback
-      setStats({Stats.todayTotal = todayPosts.length;
-        totalUsers: 25,("Calculated today's posts from all posts:", postStats.todayTotal);
+      setStats({
+        totalUsers: 25,
         totalPosts: 128,
         newUsersToday: 3,
-        activeUsers: 12("Failed to calculate today's posts:", err);
+        activeUsers: 12,
+        todayPosts: 5
       });
-      }
+      
       // Sample data
       setRecentUsers([
         { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com', createdAt: new Date().toISOString() },
         { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com', createdAt: new Date().toISOString() }
-      ]);atch (userError) {
-        console.error("Error fetching recent users:", userError);
+      ]);
+      
       setRecentPosts([
         { id: '1', title: 'First Post', username: 'John Doe', createdAt: new Date().toISOString() },
         { id: '2', title: 'Second Post', username: 'Jane Smith', createdAt: new Date().toISOString() }
-      ]);onst recentPostsRes = await axiosInstance.get("/api/admin/posts/recent");
-    } finally {ostsData = recentPostsRes.data;
-      setLoading(false);) {
-    }   console.error("Error fetching recent posts:", postError);
-  };  }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
-    return (lUsers: userStats.total,
-      <>totalPosts: postStats.total,
-        <Header user={user} />ts.newToday,
+    return (
+      <>
+        <Header user={user} />
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
       </>
-    );setRecentUsers(recentUsersData);
-  }   setRecentPosts(recentPostsData);
-    } catch (error) {
-  return (ole.error("Error fetching dashboard data:", error);
-    <>// Use placeholder data as fallback
+    );
+  }
+
+  return (
+    <>
       <Header user={user} />
       <div className="flex">
-        {/* Sidebar */},
+        {/* Sidebar */}
         <div className={`bg-gray-800 text-white w-64 min-h-screen flex-shrink-0 ${sidebarOpen ? 'block' : 'hidden'} md:block`}>
           <div className="p-4">
             <div className="flex items-center justify-between">
@@ -260,13 +296,13 @@ function AdminDashboard() {
               <button 
                 className="md:hidden text-white focus:outline-none" 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-              >1', firstName: 'John', lastName: 'Doe', email: 'john@example.com', createdAt: new Date().toISOString() },
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">new Date().toISOString() }
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-            </div> title: 'First Post', username: 'John Doe', createdAt: new Date().toISOString() },
-          </div>', title: 'Second Post', username: 'Jane Smith', createdAt: new Date().toISOString() }
+            </div>
+          </div>
           
           <nav className="mt-4">
             <div className="px-4 py-2">
@@ -277,8 +313,8 @@ function AdminDashboard() {
               >
                 <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>="flex justify-center items-center min-h-screen">
-                Dashboard"animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                </svg>
+                Dashboard
               </Link>
             </div>
             
@@ -288,223 +324,206 @@ function AdminDashboard() {
                 <Link 
                   to="/admin/users/add" 
                   className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >ar */}
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">' : 'hidden'} md:block`}>
+                >
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>me="flex items-center justify-between">
-                  Add Usere="text-xl font-semibold">Admin Panel</h2>
+                  </svg>
+                  Add User
                 </Link>
-                className="md:hidden text-white focus:outline-none" 
-                <Link k={() => setSidebarOpen(!sidebarOpen)}
+                
+                <Link 
                   to="/admin/users" 
                   className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                > <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                >
                   <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
                   Manage Users
                 </Link>
-                lassName="mt-4">
-                <Link Name="px-4 py-2">
-                  to="/admin/users/blocked" e tracking-wider text-gray-400">Main</p>
+                
+                <Link 
+                  to="/admin/users/blocked" 
                   className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >o="/admin/dashboard" 
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">hover:bg-gray-600"
+                >
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>ssName="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  Blocked Usersinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Blocked Users
                 </Link>
-              </div>board
-            </div>nk>
+              </div>
             </div>
+            
             <div className="mt-4 px-4 py-2">
               <p className="text-xs uppercase tracking-wider text-gray-400">Content</p>
-              <div className="mt-2 space-y-1">tracking-wider text-gray-400">User Management</p>
-                <Link ssName="mt-2 space-y-1">
+              <div className="mt-2 space-y-1">
+                <Link 
                   to="/admin/posts" 
                   className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                > className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
+                >
                   <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>h strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
                   Manage Posts
-                </Link>ser
                 </Link>
+                
                 <Link 
                   to="/admin/comments" 
                   className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                > className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
+                >
                   <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                  </svg>h strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
                   Manage Comments
-                </Link>e Users
-              </div>nk>
+                </Link>
+              </div>
             </div>
-                <Link 
+            
             <div className="mt-4 px-4 py-2">
-              <p className="text-xs uppercase tracking-wider text-gray-400">Settings</p>over:bg-gray-700"
+              <p className="text-xs uppercase tracking-wider text-gray-400">Settings</p>
               <Link 
-                to="/admin/settings"  w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                className="mt-2 flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700" 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              >   </svg>
+                to="/admin/settings" 
+                className="mt-2 flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
+              >
                 <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 System Settings
-              </Link>sName="mt-4 px-4 py-2">
-            </div>lassName="text-xs uppercase tracking-wider text-gray-400">Content</p>
-          </nav>iv className="mt-2 space-y-1">
-        </div>  <Link 
-                  to="/admin/posts" 
-        {/* Mobile sidebar toggle button */}er px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
+              </Link>
+            </div>
+          </nav>
+        </div>
+        
+        {/* Mobile sidebar toggle button */}
         <div className="md:hidden fixed bottom-4 right-4 z-50">
-          <button <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            onClick={() => setSidebarOpen(!sidebarOpen)}nejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
             className="bg-indigo-600 text-white p-3 rounded-full shadow-lg focus:outline-none"
-          >       Manage Posts
+          >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               {sidebarOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              ) : (o="/admin/comments" 
+              ) : (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              )}>
-            </svg><svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          </button> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-        </div>    </svg>
-                  Manage Comments
+              )}
+            </svg>
+          </button>
+        </div>
+        
         {/* Main Content */}
         <div className="flex-1 min-w-0 overflow-auto">
           <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
             <div className="px-4 py-6 sm:px-0">
               <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
-              <p className="text-xs uppercase tracking-wider text-gray-400">Settings</p>
+              
               {/* Stats Cards */}
               <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Total Users Card */}ms-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
+                {/* Total Users Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">none" viewBox="0 0 24 24 24" stroke="currentColor">
-                    <dl>strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>3 0 11-6 0 3 3 0 016 0z" />
+                  <div className="px-4 py-5 sm:p-6">
+                    <dl>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
                       <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalUsers}</dd>
-                    </dl>ttings
+                    </dl>
                   </div>
                   <div className="bg-gray-50 px-4 py-3">
                     <div className="text-sm">
                       <Link to="/admin/users" className="font-medium text-indigo-600 hover:text-indigo-500">
                         View all users
-                      </Link>ggle button */}
-                    </div>:hidden fixed bottom-4 right-4 z-50">
+                      </Link>
+                    </div>
                   </div>
-                </div>) => setSidebarOpen(!sidebarOpen)}
-            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg focus:outline-none"
+                </div>
+
                 {/* Total Posts Card */}
-                <div className="bg-white overflow-hidden shadow rounded-lg">"currentColor">
+                <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
-                    <dl>rokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Posts</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalPosts}</dd> 18h16" />
+                    <dl>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Today Total Posts</dt>
+                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.todayPosts}</dd>
                     </dl>
                   </div>
                   <div className="bg-gray-50 px-4 py-3">
                     <div className="text-sm">
                       <Link to="/admin/posts" className="font-medium text-indigo-600 hover:text-indigo-500">
                         View all posts
-                      </Link>1 min-w-0 overflow-auto">
-                    </div>max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-                  </div>me="px-4 py-6 sm:px-0">
-                </div>sName="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
-              
-                {/* Today's Posts Card */}
-                <div className="bg-white overflow-hidden shadow rounded-lg">grid-cols-4">
-                  <div className="px-4 py-5 sm:p-6">
-                    <dl>ssName="bg-white overflow-hidden shadow rounded-lg">
-                      <dt className="text-sm font-medium text-gray-500 truncate">Today's Posts</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.todayPosts}</dd>
-                    </dl> className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-                  </div>d className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalUsers}</dd>
-                  <div className="bg-gray-50 px-4 py-3">dl>
-                    <div className="text-sm">                  </div>
-                      <Link to="/admin/posts" className="font-medium text-indigo-600 hover:text-indigo-500">-50 px-4 py-3">
-                        View today's posts
-                      </Link>ame="font-medium text-indigo-600 hover:text-indigo-500">
-                    </div>View all users
+                      </Link>
+                    </div>
                   </div>
                 </div>
 
                 {/* New Users Today Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">Total Posts Card */}
-                    <dl>                <div className="bg-white overflow-hidden shadow rounded-lg">
-                      <dt className="text-sm font-medium text-gray-500 truncate">New Users Today</dt>y-5 sm:p-6">
+                  <div className="px-4 py-5 sm:p-6">
+                    <dl>
+                      <dt className="text-sm font-medium text-gray-500 truncate">New Users Today</dt>
                       <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.newUsersToday}</dd>
-                    </dl>day Total Posts</dt>
-                  </div>ont-semibold text-gray-900">{stats.todayPosts}</dd>
+                    </dl>
+                  </div>
                 </div>
 
                 {/* Active Users Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">"font-medium text-indigo-600 hover:text-indigo-500">
-                    <dl> posts
+                  <div className="px-4 py-5 sm:p-6">
+                    <dl>
                       <dt className="text-sm font-medium text-gray-500 truncate">Active Users</dt>
                       <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.activeUsers}</dd>
                     </dl>
                   </div>
                 </div>
-              </div> Card */}
+              </div>
 
-              {/* Recent Users Table */} py-5 sm:p-6">
+              {/* Recent Users Table */}
               <div className="mt-8">
-                <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>me="text-sm font-medium text-gray-500 truncate">New Users Today</dt>
-                <div className="mt-4 flex flex-col">e="mt-1 text-3xl font-semibold text-gray-900">{stats.newUsersToday}</dd>
+                <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>
+                <div className="mt-4 flex flex-col">
                   <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
                     <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
                       <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
-                            <tr>ite overflow-hidden shadow rounded-lg">
+                            <tr>
                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Name
-                              </th>text-sm font-medium text-gray-500 truncate">Active Users</dt>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">}</dd>
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Email
                               </th>
                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Joined
                               </th>
-                            </tr>able */}
-                          </thead>="mt-8">
-                          <tbody className="bg-white divide-y divide-gray-200">ame="text-lg font-medium text-gray-900">Recent Users</h2>
-                            {recentUsers.map((user) => (ssName="mt-4 flex flex-col">
-                              <tr key={user.id}> className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                                <td className="px-6 py-4 whitespace-nowrap"><div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                                  <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                                </td>="min-w-full divide-y divide-gray-200">
-                                <td className="px-6 py-4 whitespace-nowrap">ssName="bg-gray-50">
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {recentUsers.map((user) => (
+                              <tr key={user.id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="text-sm text-gray-500">{user.email}</div>
-                                </td>ame="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                   {new Date(user.createdAt).toLocaleDateString()}
-                                </td>-gray-500 uppercase tracking-wider">
+                                </td>
                               </tr>
                             ))}
-                          </tbody>h scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          </tbody>
                         </table>
                       </div>
                     </div>
                   </div>
-                </div>Name="bg-white divide-y divide-gray-200">
-              </div>Users.map((user) => (
+                </div>
+              </div>
 
-              {/* Recent Posts Table */}ssName="px-6 py-4 whitespace-nowrap">
-              <div className="mt-8">div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>/td>
-                <div className="mt-4 flex flex-col">d className="px-6 py-4 whitespace-nowrap">
-                  <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">email}</div>
+              {/* Recent Posts Table */}
+              <div className="mt-8">
+                <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>
+                <div className="mt-4 flex flex-col">
+                  <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
                     <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">x-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <table className="min-w-full divide-y divide-gray-200">ng()}
+                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -516,85 +535,49 @@ function AdminDashboard() {
                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Created
                               </th>
-                            </tr>able */}
-                          </thead>="mt-8">
-                          <tbody className="bg-white divide-y divide-gray-200">ame="text-lg font-medium text-gray-900">Recent Posts</h2>
-                            {recentPosts.map((post) => (ssName="mt-4 flex flex-col">
-                              <tr key={post.id}> className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                                <td className="px-6 py-4 whitespace-nowrap"><div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                                  <div className="text-sm font-medium text-gray-900">{post.title}</div>                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                                </td>sName="min-w-full divide-y divide-gray-200">
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {recentPosts.map((post) => (
+                              <tr key={post.id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{post.title}</div>
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="text-sm text-gray-500">{post.username}</div>
-                                </td>ame="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                   {new Date(post.createdAt).toLocaleDateString()}
-                                </td>  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                </td>
                               </tr>
                             ))}
-                          </tbody>       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        </table>ted
-                      </div> </th>
-                    </div>  </tr>
-                  </div>  </thead>
-                </div>    <tbody className="bg-white divide-y divide-gray-200">
-              </div>                            {recentPosts.map((post) => (
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-              {/* Admin Actions */}py-4 whitespace-nowrap">
+              {/* Admin Actions */}
               <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">    <td className="px-6 py-4 whitespace-nowrap">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">User Management</h3>ssName="text-sm text-gray-500">{post.username}</div>
+                  <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">User Management</h3>
                     <div className="mt-5">
-                      <Link          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        to="/admin/users"  Date(post.createdAt).toLocaleDateString()}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"   </td>
-                      >    </tr>
-                        Manage Users    ))}
-                      </Link>    </tbody>
-                    </div>                        </table>
+                      <Link 
+                        to="/admin/users" 
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        Manage Users
+                      </Link>
+                    </div>
                   </div>
                 </div>
 
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <h3 className="text-lg leading-6 font-medium text-gray-900">Content Moderation</h3>
-                    <div className="mt-5">
-                      <Link sName="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        to="/admin/posts" e overflow-hidden shadow rounded-lg">
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"ame="px-4 py-5 sm:p-6">
-                      >assName="text-lg leading-6 font-medium text-gray-900">User Management</h3>
-                        Moderate Posts className="mt-5">
-                      </Link><Link 
-                    </div>    to="/admin/users" 
-                  </div>      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-                </div>      >
-          Manage Users
-                <div className="bg-white overflow-hidden shadow rounded-lg">          </Link>
-                  <div className="px-4 py-5 sm:p-6">             </div>
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">System Settings</h3>              </div>
-                    <div className="mt-5">               </div>
-                      <Link 
-                        to="/admin/settings" ="bg-white overflow-hidden shadow rounded-lg">
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"                  <div className="px-4 py-5 sm:p-6">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-export default AdminDashboard;}  );    </>      </div>        </div>          </div>            </div>              </div>                </div>                  </div>                    </div>                      </Link>                        System Settings                      >                    <h3 className="text-lg leading-6 font-medium text-gray-900">Content Moderation</h3>
                     <div className="mt-5">
                       <Link 
                         to="/admin/posts" 
