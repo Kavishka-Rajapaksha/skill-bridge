@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
+import Comments from "./Comments";
 
 function Post({ post, onPostDeleted, onPostUpdated }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -10,6 +11,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [deleting, setDeleting] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [mediaUrls, setMediaUrls] = useState({});
+  const [mediaErrors, setMediaErrors] = useState({});
+  const [showComments, setShowComments] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
   const user = JSON.parse(localStorage.getItem("user"));
 
   const formatDate = (dateString) => {
@@ -26,41 +31,58 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   // Fetch media as a blob and create object URL
   const getMediaUrl = async (mediaId, originalUrl) => {
     try {
+      // Check if media type is known
+      const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
+
       const response = await axiosInstance.get(`/api/media/${mediaId}`, {
         responseType: "blob",
       });
-      if (response.data instanceof Blob) {
+
+      if (response.data && response.data.url) {
+        // New format where response.data contains { url, type, size }
+        return response.data.url;
+      } else if (response.data instanceof Blob && response.data.size > 0) {
+        // Fallback for direct blob responses
         return URL.createObjectURL(response.data);
       }
-      console.warn(`Invalid blob for media ${mediaId}, using fallback URL`);
+
+      console.warn(
+        `Invalid or empty media data for ${mediaId}, using fallback URL`
+      );
       return getFullUrl(originalUrl);
     } catch (error) {
       console.error(`Error loading media ${mediaId}:`, error);
-      return getFullUrl(originalUrl); // Fallback to original URL
+      setMediaErrors((prev) => ({ ...prev, [mediaId]: true }));
+      return getFullUrl(originalUrl);
     }
   };
 
   // Load all media URLs
   useEffect(() => {
-    const newMediaUrls = {};
     const loadMedia = async () => {
+      const newMediaUrls = {};
+
       // Handle video
       if (post.videoUrl) {
         const mediaId = post.videoUrl.split("/").pop();
-        newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
+        try {
+          newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
+        } catch (error) {
+          console.error("Failed to load video:", error);
+        }
       }
 
       // Handle images
       if (post.imageUrls?.length) {
-        const imagePromises = post.imageUrls.map(async (url) => {
+        for (const url of post.imageUrls) {
           const mediaId = url.split("/").pop();
-          const mediaUrl = await getMediaUrl(mediaId, url);
-          return { mediaId, mediaUrl };
-        });
-        const resolvedImages = await Promise.all(imagePromises);
-        resolvedImages.forEach(({ mediaId, mediaUrl }) => {
-          newMediaUrls[mediaId] = mediaUrl;
-        });
+          try {
+            const mediaUrl = await getMediaUrl(mediaId, url);
+            newMediaUrls[mediaId] = mediaUrl;
+          } catch (error) {
+            console.error("Failed to load image:", error);
+          }
+        }
       }
 
       setMediaUrls(newMediaUrls);
@@ -70,8 +92,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
     // Cleanup object URLs
     return () => {
-      Object.values(newMediaUrls).forEach((url) => {
-        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      Object.values(mediaUrls).forEach((url) => {
+        if (url && typeof url === "string" && url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
       });
     };
   }, [post.videoUrl, post.imageUrls]);
@@ -139,17 +163,29 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     }
   };
 
+  const handleCommentClick = () => {
+    setShowComments(!showComments);
+    // Show comment input only when opening comments for the first time
+    if (!showComments) {
+      setShowCommentInput(true);
+    }
+  };
+
+  const handleCommentCountChange = (newCount) => {
+    setCommentCount(newCount);
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-md mb-4 p-6 transform transition duration-200 hover:shadow-lg">
+    <div className="bg-white rounded-lg shadow-md mb-4 p-4 relative">
       {user && user.id === post.userId && (
-        <div className="absolute top-6 right-6">
+        <div className="absolute top-4 right-4">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+            className="p-1 hover:bg-gray-100 rounded-full"
             disabled={deleting || updating}
           >
             <svg
-              className="w-5 h-5 text-gray-600 hover:text-gray-800"
+              className="w-6 h-6 text-gray-500"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -163,53 +199,21 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
             </svg>
           </button>
           {showMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 ring-1 ring-black ring-opacity-5">
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50">
               <button
                 onClick={handleEdit}
-                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-150 first:rounded-t-md"
+                className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100"
               >
-                <span className="flex items-center">
-                  <svg
-                    className="w-4 h-4 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                  Edit Post
-                </span>
+                Edit Post
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className={`w-full text-left px-4 py-3 text-sm ${
-                  deleting
-                    ? "text-gray-400"
-                    : "text-red-600 hover:bg-red-50 hover:text-red-700"
-                } transition-colors duration-150 last:rounded-b-md`}
+                className={`w-full text-left px-4 py-2 text-sm ${
+                  deleting ? "text-gray-400" : "text-red-600 hover:bg-gray-100"
+                }`}
               >
-                <span className="flex items-center">
-                  <svg
-                    className="w-4 h-4 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  {deleting ? "Deleting..." : "Delete Post"}
-                </span>
+                {deleting ? "Deleting..." : "Delete Post"}
               </button>
             </div>
           )}
@@ -217,23 +221,21 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       )}
 
       <div className="flex items-center mb-4">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mr-4 overflow-hidden">
+        <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center mr-3">
           {post.userProfilePicture ? (
             <img
               src={post.userProfilePicture}
               alt={post.userName}
-              className="w-full h-full object-cover"
+              className="w-full h-full rounded-full object-cover"
             />
           ) : (
-            <span className="text-xl font-bold text-white">
+            <span className="text-lg font-semibold">
               {post.userName?.charAt(0)}
             </span>
           )}
         </div>
         <div>
-          <h3 className="font-semibold text-lg text-gray-900">
-            {post.userName || "Unknown User"}
-          </h3>
+          <h3 className="font-semibold">{post.userName || "Unknown User"}</h3>
           <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
         </div>
       </div>
@@ -302,15 +304,13 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         </form>
       ) : (
         <>
-          <p className="mb-6 text-gray-800 whitespace-pre-wrap">
-            {post.content}
-          </p>
+          <p className="mb-4">{post.content}</p>
 
           {post.videoUrl && (
-            <div className="mb-6 rounded-lg overflow-hidden bg-black">
+            <div className="mb-4">
               <video
                 src={mediaUrls.video || getFullUrl(post.videoUrl)}
-                className="w-full max-h-[600px] object-contain"
+                className="max-h-96 w-full object-contain"
                 controls
                 playsInline
                 preload="metadata"
@@ -323,77 +323,64 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
             </div>
           )}
 
-          {post.imageUrls?.length > 0 && (
-            <div
-              className={`mb-6 grid gap-4 ${
-                post.imageUrls.length === 1
-                  ? "grid-cols-1"
-                  : post.imageUrls.length === 2
-                  ? "grid-cols-2"
-                  : "grid-cols-3"
+          {post.imageUrls?.map((url, index) => {
+            const mediaId = url.split("/").pop();
+            return (
+              <img
+                key={index}
+                src={mediaUrls[mediaId] || getFullUrl(url)}
+                alt={`Post image ${index + 1}`}
+                className="max-h-96 object-contain mb-4 w-full"
+                onError={(e) => {
+                  console.error("Image failed to load:", url);
+                  e.target.src =
+                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
+                }}
+              />
+            );
+          })}
+
+          <div className="flex items-center space-x-6 border-t pt-4">
+            <button className="flex items-center space-x-2 text-gray-500 hover:text-red-500">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                />
+              </svg>
+              <span>{post.likes}</span>
+            </button>
+            <button
+              onClick={handleCommentClick}
+              className={`flex items-center space-x-2 ${
+                showComments
+                  ? "text-blue-500"
+                  : "text-gray-500 hover:text-blue-500"
               }`}
             >
-              {post.imageUrls.map((url, index) => {
-                const mediaId = url.split("/").pop();
-                return (
-                  <div
-                    key={index}
-                    className="relative aspect-square rounded-lg overflow-hidden bg-gray-100"
-                  >
-                    <img
-                      src={mediaUrls[mediaId] || getFullUrl(url)}
-                      alt={`Post image ${index + 1}`}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        console.error("Image failed to load:", url);
-                        e.target.src =
-                          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between border-t pt-4">
-            <div className="flex items-center space-x-6">
-              <button className="flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors duration-200">
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                  />
-                </svg>
-                <span className="font-medium">{post.likes}</span>
-              </button>
-              <button className="flex items-center space-x-2 text-gray-600 hover:text-blue-500 transition-colors duration-200">
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
-                <span className="font-medium">
-                  {post.comments?.length || 0}
-                </span>
-              </button>
-            </div>
-            <button className="flex items-center space-x-2 text-gray-600 hover:text-green-500 transition-colors duration-200">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
+              <span>{commentCount}</span>
+            </button>
+            <button className="flex items-center space-x-2 text-gray-500 hover:text-green-500">
               <svg
                 className="w-6 h-6"
                 fill="none"
@@ -407,9 +394,19 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                   d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
                 />
               </svg>
-              <span className="font-medium">Share</span>
             </button>
           </div>
+
+          {showComments && (
+            <div className="mt-4 border-t pt-4">
+              <Comments
+                postId={post.id}
+                postOwnerId={post.userId}
+                showInput={showCommentInput}
+                onCommentCountChange={handleCommentCountChange}
+              />
+            </div>
+          )}
         </>
       )}
     </div>

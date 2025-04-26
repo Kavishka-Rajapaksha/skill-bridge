@@ -1,5 +1,7 @@
 package com.example.backend.service;
 
+import java.util.Date;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +26,7 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    public User loginUser(String email, String password) {
+    public User loginUser(String email, String password) throws Exception {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -34,6 +36,11 @@ public class AuthService {
 
         // Add raw password for auth
         user.setRawPassword(password);
+        
+        // Update the last login time
+        user.setLastLogin(new Date());
+        userRepository.save(user);
+        
         return user;
     }
 }
