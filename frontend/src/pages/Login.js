@@ -17,16 +17,28 @@ function Login() {
       [e.target.name]: e.target.value,
     });
   };
-
+  // Store password for Basic Auth
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const response = await axiosInstance.post("/api/auth/login", formData);
-      localStorage.setItem("user", JSON.stringify(response.data));
+      const userData = {
+        ...response.data,
+        email: formData.email,
+        password: formData.password, // Store password for Basic Auth
+      };
+      localStorage.setItem("user", JSON.stringify(userData));
       navigate("/");
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.response?.data || "An error occurred";
-      setError(typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage);
+      const errorMessage =
+        err.response?.data?.message ||
+        err.response?.data ||
+        "An error occurred";
+      setError(
+        typeof errorMessage === "object"
+          ? JSON.stringify(errorMessage)
+          : errorMessage
+      );
     }
   };
 
