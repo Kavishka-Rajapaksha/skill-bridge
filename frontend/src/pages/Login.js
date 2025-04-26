@@ -17,7 +17,7 @@ function Login() {
       [e.target.name]: e.target.value,
     });
   };
-
+  // Store password for Basic Auth
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
