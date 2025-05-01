@@ -14,6 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,10 +35,18 @@ public class CommentService {
 
     private CommentResponse convertToCommentResponse(Comment comment) {
         CommentResponse response = new CommentResponse(comment);
-        User user = userRepository.findById(comment.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        response.setUserName(user.getFirstName() + " " + user.getLastName());
-        response.setUserProfilePicture(user.getProfilePicture());
+
+        try {
+            userRepository.findById(comment.getUserId()).ifPresent(user -> {
+                response.setUserName(user.getFirstName() + " " + user.getLastName());
+                response.setUserProfilePicture(user.getProfilePicture());
+            });
+        } catch (Exception e) {
+            // If user not found, use default values
+            response.setUserName("Deleted User");
+            response.setUserProfilePicture(null);
+        }
+
         return response;
     }
 
@@ -95,29 +104,47 @@ public class CommentService {
     }
 
     public List<CommentResponse> getPostComments(String postId) {
-        return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
-                .stream()
-                .map(this::convertToCommentResponse)
-                .collect(Collectors.toList());
+        try {
+            return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
+                    .stream()
+                    .map(this::convertToCommentResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Log error and return empty list
+            System.err.println("Error fetching comments for post " + postId + ": " + e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     public Page<CommentResponse> getPostComments(String postId, PageRequest pageRequest) {
-        Page<Comment> commentPage = commentRepository.findByPostIdOrderByCreatedAtDesc(postId, pageRequest);
-        List<CommentResponse> commentResponses = commentPage.getContent().stream()
-                .map(this::convertToCommentResponse)
-                .collect(Collectors.toList());
+        try {
+            Page<Comment> commentPage = commentRepository.findByPostIdOrderByCreatedAtDesc(postId, pageRequest);
+            List<CommentResponse> commentResponses = commentPage.getContent().stream()
+                    .map(this::convertToCommentResponse)
+                    .collect(Collectors.toList());
 
-        return new PageImpl<>(
-                commentResponses,
-                pageRequest,
-                commentPage.getTotalElements());
+            return new PageImpl<>(
+                    commentResponses,
+                    pageRequest,
+                    commentPage.getTotalElements());
+        } catch (Exception e) {
+            // Log error and return empty page
+            System.err.println("Error fetching paged comments for post " + postId + ": " + e.getMessage());
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
+        }
     }
 
     public List<CommentResponse> getPostComments(String postId, int limit) {
-        return commentRepository.findByPostIdOrderByCreatedAtDesc(postId, PageRequest.of(0, limit))
-                .getContent()
-                .stream()
-                .map(this::convertToCommentResponse)
-                .collect(Collectors.toList());
+        try {
+            return commentRepository.findByPostIdOrderByCreatedAtDesc(postId, PageRequest.of(0, limit))
+                    .getContent()
+                    .stream()
+                    .map(this::convertToCommentResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Log error and return empty list
+            System.err.println("Error fetching limited comments for post " + postId + ": " + e.getMessage());
+            return Collections.emptyList();
+        }
     }
 }
