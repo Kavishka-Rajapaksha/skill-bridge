@@ -29,7 +29,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.backend.model.Post;
 import com.example.backend.model.PostResponse;
+import com.example.backend.repository.PostRepository;
 import com.example.backend.service.PostService;
 import com.mongodb.client.gridfs.GridFSBucket;
 import com.mongodb.client.gridfs.GridFSDownloadStream;
@@ -37,19 +39,20 @@ import com.mongodb.client.gridfs.model.GridFSFile;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" }) // Add port 3002
 public class PostController {
     private static final Logger logger = Logger.getLogger(PostController.class.getName());
     private final PostService postService;
     private final GridFSBucket gridFSBucket;
+    private final PostRepository postRepository;
 
     @Value("${upload.directory}")
     private String uploadDirectory;
 
     @Autowired
-    public PostController(PostService postService, GridFSBucket gridFSBucket) {
+    public PostController(PostService postService, GridFSBucket gridFSBucket, PostRepository postRepository) {
         this.postService = postService;
         this.gridFSBucket = gridFSBucket;
+        this.postRepository = postRepository;
     }
 
     @PostMapping("/posts")
@@ -129,7 +132,22 @@ public class PostController {
             if (Files.exists(localFilePath)) {
                 logger.info("Found media in local storage: " + localFilePath);
                 byte[] data = Files.readAllBytes(localFilePath);
-                String contentType = determineContentType(localFilePath.getFileName().toString(), null);
+
+                // Look for content type in post metadata if available
+                String contentType = null;
+                try {
+                    List<Post> posts = postRepository.findByMediaIdsContaining(mediaId);
+                    if (!posts.isEmpty() && posts.get(0).getMediaTypes() != null) {
+                        contentType = posts.get(0).getMediaTypes().get(mediaId);
+                        logger.info("Found content type from post metadata: " + contentType);
+                    }
+                } catch (Exception e) {
+                    logger.warning("Error retrieving media type from post: " + e.getMessage());
+                }
+
+                if (contentType == null) {
+                    contentType = determineContentType(localFilePath.getFileName().toString(), null);
+                }
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.parseMediaType(contentType));
