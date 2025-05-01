@@ -9,4 +9,8 @@ public interface PostRepository extends MongoRepository<Post, String> {
     List<Post> findAllByOrderByCreatedAtDesc();
 
     List<Post> findByUserIdOrderByCreatedAtDesc(String userId);
-}
+feature/kushan/content-moderation
+    
+    int countByCreatedAtGreaterThanEqual(Date date);
+
+    List<Post> findByMediaIdsContaining(String mediaId);

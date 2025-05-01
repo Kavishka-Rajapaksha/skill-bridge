@@ -129,7 +129,8 @@ public class PostController {
             if (Files.exists(localFilePath)) {
                 logger.info("Found media in local storage: " + localFilePath);
                 byte[] data = Files.readAllBytes(localFilePath);
-                String contentType = determineContentType(localFilePath.getFileName().toString(), null);
+String contentType = determineContentType(localFilePath.getFileName().toString(), null);
+feature/charuka/chat-part
 
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.parseMediaType(contentType));
