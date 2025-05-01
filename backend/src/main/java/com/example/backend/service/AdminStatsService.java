@@ -18,13 +18,13 @@ public class AdminStatsService {
 
     @Autowired
     private UserRepository userRepository;
-    
+
     @Autowired
     private PostRepository postRepository;
-    
+
     public StatsResponse getUserStats() {
         int totalUsers = (int) userRepository.count();
-        
+
         // Calculate new users today
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, 0);
@@ -32,20 +32,20 @@ public class AdminStatsService {
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         Date today = calendar.getTime();
-        
+
         int newUsersToday = userRepository.countByCreatedAtGreaterThanEqual(today);
-        
+
         // Calculate active users (users with enabled=true)
         int activeUsers = userRepository.countByEnabledTrue();
-        
+
         return new StatsResponse(totalUsers, newUsersToday, activeUsers);
     }
-    
+
     public StatsResponse getPostStats() {
         int totalPosts = (int) postRepository.count();
         return new StatsResponse(totalPosts);
     }
-    
+
     public int getTodayPostsCount() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, 0);
@@ -53,7 +53,7 @@ public class AdminStatsService {
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         Date today = calendar.getTime();
-        
-        return postRepository.countByCreatedAtGreaterThanEqual(today);
+
+        return (int) postRepository.countByCreatedAtGreaterThanEqual(today);
     }
 }
