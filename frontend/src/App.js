@@ -17,6 +17,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import Header from "./components/Header"; // Import the Header component
+import GroupManagement from "./components/GroupManagement"; // Import GroupManagement component
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -42,7 +43,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/groups" element={<Groups />} />
+          <Route path="/groups" element={<GroupManagement />} />
           <Route path="/groups/:id" element={<GroupDetail />} />
 
           {/* Admin Routes */}

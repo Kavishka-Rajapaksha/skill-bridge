@@ -27,7 +27,17 @@ public class GroupController {
     }
 
     @PostMapping(consumes = "application/json", produces = "application/json")
-    public ResponseEntity<Group> createGroup(@RequestBody Group group) {
+    public ResponseEntity<Group> createGroup(
+        @RequestBody Group group,
+        @RequestHeader(value = "userId", required = false) String userId) {
+        
+        if (userId != null && !userId.isEmpty()) {
+            // Ensure the userId in header matches the createdBy in the group
+            if (group.getCreatedBy() != null && !group.getCreatedBy().equals(userId)) {
+                return ResponseEntity.status(403).body(null);
+            }
+        }
+        
         return ResponseEntity.ok(groupService.createGroup(group));
     }
 

@@ -50,7 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register").permitAll() // Explicitly permit registration
                         .requestMatchers("/api/auth/login").permitAll() // Explicitly permit login
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN") // Secure admin endpoints
-                        .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api/media/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api.media/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -90,7 +90,8 @@ public class SecurityConfig {
                 "Cache-Control",
                 "Pragma",
                 "If-Modified-Since",
-                "If-None-Match"));
+                "If-None-Match",
+                "userId")); // Added userId to allowed headers
         configuration.setExposedHeaders(Arrays.asList(
                 "Authorization",
                 "Content-Disposition",
