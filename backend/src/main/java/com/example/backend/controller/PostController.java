@@ -136,7 +136,10 @@ public class PostController {
                 // Look for content type in post metadata if available
                 String contentType = null;
                 try {
-                    List<Post> posts = postRepository.findByMediaIdsContaining(mediaId);
+                    List<Post> posts = postRepository.findAll().stream()
+                            .filter(p -> p.getMediaIds() != null && p.getMediaIds().contains(mediaId))
+                            .toList();
+                    
                     if (!posts.isEmpty() && posts.get(0).getMediaTypes() != null) {
                         contentType = posts.get(0).getMediaTypes().get(mediaId);
                         logger.info("Found content type from post metadata: " + contentType);
