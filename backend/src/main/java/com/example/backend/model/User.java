@@ -2,7 +2,6 @@ package com.example.backend.model;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -21,15 +20,13 @@ public class User implements UserDetails {
     private String password;
     private String profilePicture;
     private String bio;
-    private String role = "ROLE_USER";
     private boolean enabled = true;
-    private Date createdAt = new Date();
-    private Date lastLogin; // Added lastLogin field
+    private String role = "ROLE_USER";  // Add this field
 
     @Transient
     private String rawPassword;
 
-    // Getters and setters
+    // Getters and Setters
     public String getId() {
         return id;
     }
@@ -98,15 +95,6 @@ public class User implements UserDetails {
         this.rawPassword = rawPassword;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return enabled;
-    }
-
     // UserDetails implementation
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -138,19 +126,8 @@ public class User implements UserDetails {
         return true;
     }
 
-    public Date getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Date createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Date getLastLogin() {
-        return lastLogin;
-    }
-
-    public void setLastLogin(Date lastLogin) {
-        this.lastLogin = lastLogin;
+    @Override
+    public boolean isEnabled() {
+        return enabled;
     }
 }

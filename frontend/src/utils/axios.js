@@ -62,13 +62,8 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Add timing information to error logging
-    const requestTime = new Date().toISOString();
-    const endpoint = error.config?.url || 'unknown endpoint';
-    
     if (error.code === "ERR_NETWORK") {
-      console.error(`[${requestTime}] Network Error - Backend may be down: ${endpoint}`, error);
-      
+      console.error("Network Error - Backend may be down:", error);
       // Add retry logic for media requests
       if (error.config?.url?.includes("/api/media/")) {
         const retryConfig = {
@@ -81,27 +76,10 @@ axiosInstance.interceptors.response.use(
         }
       }
     } else if (error.response?.status === 403) {
-      console.error(`[${requestTime}] Authentication error at ${endpoint}:`, error);
-      // Don't automatically redirect from profile pages to avoid loops
-      if (!window.location.pathname.includes('/profile/')) {
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
-    } else if (error.response?.status === 404) {
-      console.error(`[${requestTime}] Resource not found at ${endpoint}:`, error);
-      // Handle 404 errors differently depending on the endpoint
-      if (error.config?.url?.includes('/api/users/')) {
-        // Let the component handle user not found
-        return Promise.reject({
-          ...error,
-          isUserNotFound: true,
-          message: "User not found"
-        });
-      }
-    } else {
-      console.error(`[${requestTime}] API error at ${endpoint}:`, error);
+      console.error("Authentication error:", error);
+      localStorage.removeItem("user");
+      window.location.href = "/login";
     }
-    
     return Promise.reject(error);
   }
 );
