@@ -21,7 +21,8 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
             signal: abortController.signal,
           }
         );
-        setComments(response.data); // response.data is now a direct array
+        // Reverse the comments array to show newest first
+        setComments(response.data.reverse());
         onCommentCountChange?.(response.data.length);
       } catch (error) {
         if (!error.name === "AbortError") {
@@ -52,7 +53,8 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
           content: newComment.trim(),
         },
       });
-      const updatedComments = [...comments, response.data];
+      // Add new comment to the beginning of the array
+      const updatedComments = [response.data, ...comments];
       setComments(updatedComments);
       onCommentCountChange?.(updatedComments.length);
       setNewComment("");
@@ -154,91 +156,121 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
               No comments yet. Be the first to comment!
             </div>
           ) : (
-            comments.map((comment) => (
-              <div
-                key={comment.id}
-                className="bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200"
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white font-medium text-lg shadow-inner">
-                      {comment.userProfilePicture ? (
-                        <img
-                          src={comment.userProfilePicture}
-                          alt=""
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        <span>{comment.userName?.charAt(0)}</span>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">
-                          {comment.userName}
-                        </span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs text-gray-500">
-                          {formatDate(comment.createdAt)}
-                          {comment.updatedAt !== comment.createdAt && (
-                            <span className="italic ml-1">(edited)</span>
-                          )}
-                        </span>
-                      </div>
-
-                      {editingComment === comment.id ? (
-                        <div className="mt-2">
-                          <input
-                            type="text"
-                            defaultValue={comment.content}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                handleUpdate(comment.id, e.target.value);
-                              } else if (e.key === "Escape") {
-                                setEditingComment(null);
-                              }
-                            }}
-                            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                            autoFocus
+            <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {comments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className="group bg-white p-4 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-100"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 p-[2px] ring-2 ring-offset-2 ring-blue-100">
+                        {comment.userProfilePicture ? (
+                          <img
+                            src={comment.userProfilePicture}
+                            alt=""
+                            className="w-full h-full rounded-full object-cover"
                           />
-                          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                            <span className="bg-gray-100 px-2 py-1 rounded">
-                              Enter
-                            </span>{" "}
-                            to save
-                            <span className="bg-gray-100 px-2 py-1 rounded">
-                              Esc
-                            </span>{" "}
-                            to cancel
-                          </div>
+                        ) : (
+                          <span className="absolute inset-0 flex items-center justify-center text-lg font-semibold text-white">
+                            {comment.userName?.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer transition-colors">
+                            {comment.userName}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500 hover:text-gray-700">
+                            {formatDate(comment.createdAt)}
+                            {comment.updatedAt !== comment.createdAt && (
+                              <span className="inline-flex items-center ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                edited
+                              </span>
+                            )}
+                          </span>
                         </div>
-                      ) : (
-                        <p className="mt-1 text-gray-700">{comment.content}</p>
-                      )}
-                    </div>
-                  </div>
 
-                  {(user.id === comment.userId || user.id === postOwnerId) && (
-                    <div className="flex items-center gap-2">
-                      {user.id === comment.userId && (
-                        <button
-                          onClick={() => setEditingComment(comment.id)}
-                          className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded font-medium text-sm"
-                        >
-                          Edit
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(comment.id)}
-                        className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded font-medium text-sm"
-                      >
-                        Delete
-                      </button>
+                        {editingComment === comment.id ? (
+                          <div className="mt-2 relative">
+                            <input
+                              type="text"
+                              defaultValue={comment.content}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleUpdate(comment.id, e.target.value);
+                                } else if (e.key === "Escape") {
+                                  setEditingComment(null);
+                                }
+                              }}
+                              className="w-full p-3 pr-12 border rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+                              autoFocus
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                              <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">
+                                Enter
+                              </kbd>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-gray-700 leading-relaxed">
+                            {comment.content}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    {(user.id === comment.userId ||
+                      user.id === postOwnerId) && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {user.id === comment.userId && (
+                          <button
+                            onClick={() => setEditingComment(comment.id)}
+                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200 transform hover:scale-110"
+                            title="Edit comment"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                              />
+                            </svg>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(comment.id)}
+                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200 transform hover:scale-110"
+                          title="Delete comment"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
