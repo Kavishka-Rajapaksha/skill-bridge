@@ -236,7 +236,7 @@ public class PostController {
             }
         }
 
-        // Default fallback
+        // Default fallback mana charuk
         return "application/octet-stream";
     }
 }
