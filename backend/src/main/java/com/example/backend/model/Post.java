@@ -5,9 +5,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Document(collection = "posts")
 public class Post {
@@ -18,7 +16,6 @@ public class Post {
     private String videoUrl;
     private List<String> imageUrls = new ArrayList<>();
     private List<String> mediaIds = new ArrayList<>(); // Store GridFS IDs
-    private Map<String, String> mediaTypes = new HashMap<>(); // Store media type for each mediaId
     private int likes = 0;
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -28,15 +25,13 @@ public class Post {
 
     // Constructor for PostResponse
     public Post(String id, String userId, String content, String videoUrl, List<String> imageUrls,
-            List<String> mediaIds, Map<String, String> mediaTypes, int likes, List<String> comments,
-            LocalDateTime createdAt) {
+            List<String> mediaIds, int likes, List<String> comments, LocalDateTime createdAt) {
         this.id = id;
         this.userId = userId;
         this.content = content;
         this.videoUrl = videoUrl;
         this.imageUrls = imageUrls != null ? imageUrls : new ArrayList<>();
         this.mediaIds = mediaIds != null ? mediaIds : new ArrayList<>();
-        this.mediaTypes = mediaTypes != null ? mediaTypes : new HashMap<>();
         this.likes = likes;
         this.comments = comments != null ? comments : new ArrayList<>();
         this.createdAt = createdAt;
@@ -91,14 +86,6 @@ public class Post {
         this.mediaIds = mediaIds;
     }
 
-    public Map<String, String> getMediaTypes() {
-        return mediaTypes;
-    }
-
-    public void setMediaTypes(Map<String, String> mediaTypes) {
-        this.mediaTypes = mediaTypes;
-    }
-
     public int getLikes() {
         return likes;
     }
@@ -121,13 +108,5 @@ public class Post {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
-    }
-
-    // Helper method to add media type info
-    public void addMediaType(String mediaId, String type) {
-        if (this.mediaTypes == null) {
-            this.mediaTypes = new HashMap<>();
-        }
-        this.mediaTypes.put(mediaId, type);
     }
 }
