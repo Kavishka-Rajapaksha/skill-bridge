@@ -34,6 +34,12 @@ function App() {
     return children;
   };
 
+  // Create a user route that doesn't immediately redirect
+  const UserAwareRoute = ({ children }) => {
+    // This doesn't force a redirect - component will handle display accordingly
+    return children;
+  };
+
   return (
     <AuthProvider>
       <Router>
@@ -43,7 +49,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/groups" element={<GroupManagement />} />
+          <Route path="/groups" element={<UserAwareRoute><GroupManagement /></UserAwareRoute>} />
           <Route path="/groups/:id" element={<GroupDetail />} />
 
           {/* Admin Routes */}

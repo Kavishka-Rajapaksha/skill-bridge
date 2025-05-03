@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
@@ -8,19 +8,49 @@ function Header() {
 
   // Ensure we have user info by checking both context and localStorage
   useEffect(() => {
-    if (contextUser) {
-      setUser(contextUser);
-    } else {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
+    const checkUserAuth = () => {
+      if (contextUser) {
+        console.log("User from context:", contextUser);
+        setUser(contextUser);
+      } else {
         try {
-          setUser(JSON.parse(storedUser));
+          const storedUserStr = localStorage.getItem("user");
+          if (storedUserStr) {
+            const storedUser = JSON.parse(storedUserStr);
+            console.log("User from localStorage:", storedUser);
+            setUser(storedUser);
+          }
         } catch (error) {
           console.error("Error parsing user from localStorage:", error);
+          localStorage.removeItem("user"); // Remove invalid data
         }
       }
-    }
+    };
+
+    checkUserAuth();
+    // Add event listener for storage changes
+    window.addEventListener('storage', checkUserAuth);
+    
+    return () => {
+      window.removeEventListener('storage', checkUserAuth);
+    };
   }, [contextUser]);
+
+  // For debugging - log whenever user state changes
+  useEffect(() => {
+    console.log("Current user state:", user);
+  }, [user]);
+
+  // Helper function to get display name
+  const getUserDisplayName = () => {
+    if (!user) return "User";
+    
+    if (user.firstName) return user.firstName;
+    if (user.name) return user.name;
+    if (user.email) return user.email.split('@')[0];
+    
+    return "User";
+  };
 
   return (
     <header className="bg-white shadow-md py-4">
@@ -47,7 +77,7 @@ function Header() {
                   fill="currentColor" 
                   viewBox="0 0 20 20"
                 >
-                  <path d="M7 8a3 3 0 100-6 3 3 0 000 6zm6 5a2 2 0 100-4 2 2 0 000 4zm-6 0a2 2 0 100-4 2 2 0 000 4zm2.068 1.307a6.965 6.965 0 00-3.015-.788 7.01 7.01 0 00-5.051 1.882c-.896.88-.896 2.13 0 3.015a7.142 7.142 0 005.051 1.884c1.289-.02 2.47-.447 3.429-1.094a.75.75 0 10-.793-1.275 5.253 5.253 0 01-2.636.814 5.53 5.53 0 01-3.994-1.422.25.25 0 010-.375c.897-.89 2.458-1.434 3.994-1.422a5.253 5.253 0 012.636.814.75.75 0 10.793-1.275 6.787 6.787 0 00-.414-.207zm1.197-3.43a6.933 6.933 0 013.948 1.215.75.75 0 10.793-1.275 8.445 8.445 0 00-8.011-.607.75.75 0 00.415 1.436 6.944 6.944 0 012.855-.769z" />
+                  <path d="M7 9a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm7 9a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm7 9a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
                 </svg>
                 <span>Groups</span>
               </Link>
@@ -66,7 +96,7 @@ function Header() {
                     fill="currentColor" 
                     viewBox="0 0 20 20"
                   >
-                    <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z" />
+                    <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
                   <span>Dashboard</span>
                 </Link>
@@ -83,19 +113,22 @@ function Header() {
                   {user.profilePicture ? (
                     <img 
                       src={user.profilePicture} 
-                      alt={`${user.firstName}'s profile`} 
+                      alt={`${getUserDisplayName()}'s profile`} 
                       className="w-full h-full rounded-full object-cover"
                     />
                   ) : (
-                    <span className="font-medium">{(user.firstName || user.name || "U").charAt(0).toUpperCase()}</span>
+                    <span className="font-medium">{getUserDisplayName().charAt(0).toUpperCase()}</span>
                   )}
                 </div>
-                <span className="font-medium">{user.firstName || user.name || "User"}</span>
+                <span className="font-medium">{getUserDisplayName()}</span>
               </div>
               
               <button 
                 onClick={() => {
                   localStorage.removeItem("user");
+                  localStorage.removeItem("token");
+                  localStorage.removeItem("userId");
+                  setUser(null);
                   window.location.href = "/login";
                 }}
                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
