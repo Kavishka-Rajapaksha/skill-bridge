@@ -1,15 +1,40 @@
 import React, { useState, useEffect } from "react";
 import CreatePost from "../components/CreatePost";
 import Post from "../components/Post";
-import axiosInstance from "../utils/axios";  // Add this import
+import axiosInstance from "../utils/axios";
+import { useNavigate } from "react-router-dom";
 
 function Home() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  const fetchUserData = async () => {
+    try {
+      // Check for stored user data instead of just the token
+      const userData = localStorage.getItem("user");
+      if (!userData) {
+        navigate("/login");
+        return;
+      }
+
+      const user = JSON.parse(userData);
+      setUser(user);
+      
+      // Optionally validate token on backend or refresh user data
+      // const response = await axiosInstance.get("/api/users/me");
+      // setUser(response.data);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      localStorage.removeItem("user");
+      navigate("/login");
+    }
+  };
 
   const fetchPosts = async () => {
     try {
-      const response = await axiosInstance.get("/api/posts");  // Use axiosInstance instead of axios
+      const response = await axiosInstance.get("/api/posts");
       setPosts(response.data);
     } catch (error) {
       console.error("Error fetching posts:", error);
@@ -19,6 +44,7 @@ function Home() {
   };
 
   useEffect(() => {
+    fetchUserData();
     fetchPosts();
   }, []);
 
@@ -45,17 +71,19 @@ function Home() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <CreatePost onPostCreated={handlePostCreated} />
-      {posts.map((post) => (
-        <Post
-          key={post.id}
-          post={post}
-          onPostDeleted={handlePostDeleted}
-          onPostUpdated={handlePostUpdated}
-        />
-      ))}
-    </div>
+    <>
+      <div className="max-w-2xl mx-auto py-8 px-4">
+        <CreatePost onPostCreated={handlePostCreated} />
+        {posts.map((post) => (
+          <Post
+            key={post.id}
+            post={post}
+            onPostDeleted={handlePostDeleted}
+            onPostUpdated={handlePostUpdated}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 

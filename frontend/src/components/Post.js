@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
+import Comments from "./Comments";
+import ReactionButton from "./ReactionButton";
 
 function Post({ post, onPostDeleted, onPostUpdated }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -10,6 +12,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [deleting, setDeleting] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [mediaUrls, setMediaUrls] = useState({});
+  const [mediaErrors, setMediaErrors] = useState({});
+  const [showComments, setShowComments] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
   const user = JSON.parse(localStorage.getItem("user"));
 
   const formatDate = (dateString) => {
@@ -26,42 +32,58 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   // Fetch media as a blob and create object URL
   const getMediaUrl = async (mediaId, originalUrl) => {
     try {
+      // Check if media type is known
+      const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
+
       const response = await axiosInstance.get(`/api/media/${mediaId}`, {
         responseType: "blob",
       });
-      if (response.data instanceof Blob) {
+
+      if (response.data && response.data.url) {
+        // New format where response.data contains { url, type, size }
+        return response.data.url;
+      } else if (response.data instanceof Blob && response.data.size > 0) {
+        // Fallback for direct blob responses
         return URL.createObjectURL(response.data);
       }
-      console.warn(`Invalid blob for media ${mediaId}, using fallback URL`);
+
+      console.warn(
+        `Invalid or empty media data for ${mediaId}, using fallback URL`
+      );
       return getFullUrl(originalUrl);
     } catch (error) {
       console.error(`Error loading media ${mediaId}:`, error);
-      return getFullUrl(originalUrl); // Fallback to original URL
+      setMediaErrors((prev) => ({ ...prev, [mediaId]: true }));
+      return getFullUrl(originalUrl);
     }
   };
 
   // Load all media URLs
   useEffect(() => {
-    const newMediaUrls = {};
     const loadMedia = async () => {
+      const newMediaUrls = {};
 
       // Handle video
       if (post.videoUrl) {
         const mediaId = post.videoUrl.split("/").pop();
-        newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
+        try {
+          newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
+        } catch (error) {
+          console.error("Failed to load video:", error);
+        }
       }
 
       // Handle images
       if (post.imageUrls?.length) {
-        const imagePromises = post.imageUrls.map(async (url) => {
+        for (const url of post.imageUrls) {
           const mediaId = url.split("/").pop();
-          const mediaUrl = await getMediaUrl(mediaId, url);
-          return { mediaId, mediaUrl };
-        });
-        const resolvedImages = await Promise.all(imagePromises);
-        resolvedImages.forEach(({ mediaId, mediaUrl }) => {
-          newMediaUrls[mediaId] = mediaUrl;
-        });
+          try {
+            const mediaUrl = await getMediaUrl(mediaId, url);
+            newMediaUrls[mediaId] = mediaUrl;
+          } catch (error) {
+            console.error("Failed to load image:", error);
+          }
+        }
       }
 
       setMediaUrls(newMediaUrls);
@@ -71,8 +93,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
     // Cleanup object URLs
     return () => {
-      Object.values(newMediaUrls).forEach((url) => {
-        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      Object.values(mediaUrls).forEach((url) => {
+        if (url && typeof url === "string" && url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
       });
     };
   }, [post.videoUrl, post.imageUrls]);
@@ -119,9 +143,13 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       formData.append("content", editContent);
       editImages.forEach((image) => formData.append("images", image));
 
-      const response = await axiosInstance.put(`/api/posts/${post.id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await axiosInstance.put(
+        `/api/posts/${post.id}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
 
       onPostUpdated?.(response.data);
       setIsEditing(false);
@@ -134,6 +162,18 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleCommentClick = () => {
+    setShowComments(!showComments);
+    // Show comment input only when opening comments for the first time
+    if (!showComments) {
+      setShowCommentInput(true);
+    }
+  };
+
+  const handleCommentCountChange = (newCount) => {
+    setCommentCount(newCount);
   };
 
   return (
@@ -277,7 +317,8 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                 preload="metadata"
                 onError={(e) => {
                   console.error("Video loading error:", e);
-                  e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlZpZGVvIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
+                  e.target.src =
+                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlZpZGVvIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
                 }}
               />
             </div>
@@ -293,61 +334,90 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                 className="max-h-96 object-contain mb-4 w-full"
                 onError={(e) => {
                   console.error("Image failed to load:", url);
-                  e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
+                  e.target.src =
+                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
                 }}
               />
             );
           })}
 
-          <div className="flex items-center space-x-6 border-t pt-4">
-            <button className="flex items-center space-x-2 text-gray-500 hover:text-red-500">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          <div className="flex items-center justify-between mt-4 border-t pt-3">
+            <ReactionButton
+              postId={post.id}
+              userId={user.id}
+              onReactionChange={() => {
+                // Optionally refresh post data or handle reaction changes
+              }}
+            />
+
+            <div className="flex items-center space-x-6">
+              <button className="flex items-center space-x-2 text-gray-500 hover:text-red-500">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
+                </svg>
+                <span>{post.likes}</span>
+              </button>
+              <button
+                onClick={handleCommentClick}
+                className={`flex items-center space-x-2 ${
+                  showComments
+                    ? "text-blue-500"
+                    : "text-gray-500 hover:text-blue-500"
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                />
-              </svg>
-              <span>{post.likes}</span>
-            </button>
-            <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
-              <span>{post.comments?.length || 0}</span>
-            </button>
-            <button className="flex items-center space-x-2 text-gray-500 hover:text-green-500">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+                <span>{commentCount}</span>
+              </button>
+              <button className="flex items-center space-x-2 text-gray-500 hover:text-green-500">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {showComments && (
+            <div className="mt-4 border-t pt-4">
+              <Comments
+                postId={post.id}
+                postOwnerId={post.userId}
+                showInput={showCommentInput}
+                onCommentCountChange={handleCommentCountChange}
+              />
+            </div>
+          )}
         </>
       )}
     </div>

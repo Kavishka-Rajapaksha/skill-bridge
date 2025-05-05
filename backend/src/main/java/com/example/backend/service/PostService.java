@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -56,11 +57,36 @@ public class PostService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 
-    private PostResponse convertToPostResponse(Post post) {
-        PostResponse response = new PostResponse(post);
-        User user = getUserDetails(post.getUserId());
-        response.setUserName(user.getFirstName() + " " + user.getLastName());
-        response.setUserProfilePicture(user.getProfilePicture());
+    public PostResponse convertToPostResponse(Post post) {
+        PostResponse response = new PostResponse();
+        response.setId(post.getId());
+        response.setContent(post.getContent());
+        response.setImageUrls(post.getImageUrls());
+        response.setVideoUrl(post.getVideoUrl());
+        response.setMediaIds(post.getMediaIds());
+        response.setMediaTypes(post.getMediaTypes());
+        response.setLikes(post.getLikes());
+        response.setComments(post.getComments());
+        response.setCreatedAt(post.getCreatedAt());
+        response.setUserId(post.getUserId());
+
+        // Handle potentially deleted users gracefully
+        try {
+            userRepository.findById(post.getUserId()).ifPresentOrElse(
+                    user -> {
+                        response.setUserName(user.getFirstName() + " " + user.getLastName());
+                        response.setUserProfilePicture(user.getProfilePicture());
+                    },
+                    () -> {
+                        response.setUserName("Deleted User");
+                        response.setUserProfilePicture(null);
+                    });
+        } catch (Exception e) {
+            System.err.println("Error fetching user for post " + post.getId() + ": " + e.getMessage());
+            response.setUserName("Deleted User");
+            response.setUserProfilePicture(null);
+        }
+
         return response;
     }
 
@@ -91,6 +117,7 @@ public class PostService {
                 String videoId = saveMedia(video, "video");
                 mediaIds.add(videoId);
                 post.setVideoUrl("/api/media/" + videoId); // URL for retrieval
+                post.addMediaType(videoId, "video/" + video.getContentType().split("/")[1]); // Store content type
 
                 // Save to local storage
                 saveToLocalStorage(video, videoId);
@@ -104,6 +131,7 @@ public class PostService {
                     }
                     String imageId = saveMedia(image, "image");
                     mediaIds.add(imageId);
+                    post.addMediaType(imageId, image.getContentType()); // Store content type
 
                     // Save to local storage
                     saveToLocalStorage(image, imageId);
@@ -158,10 +186,15 @@ public class PostService {
     }
 
     public List<PostResponse> getAllPosts() {
-        List<Post> posts = postRepository.findAllByOrderByCreatedAtDesc();
-        return posts.stream()
-                .map(this::convertToPostResponse)
-                .collect(Collectors.toList());
+        try {
+            List<Post> posts = postRepository.findAllByOrderByCreatedAtDesc();
+            return posts.stream()
+                    .map(this::convertToPostResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error fetching all posts: " + e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     public List<PostResponse> getUserPosts(String userId) {
