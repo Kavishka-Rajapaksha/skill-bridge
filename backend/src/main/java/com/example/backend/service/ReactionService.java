@@ -7,8 +7,6 @@ import com.example.backend.repository.ReactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -20,64 +18,45 @@ public class ReactionService {
     @Autowired
     private PostRepository postRepository;
 
-    public Reaction addReaction(String userId, String postId, String reactionType) {
-        // Remove existing reaction if any
-        Optional<Reaction> existingReaction = reactionRepository.findByUserIdAndPostId(userId, postId);
-        if (existingReaction.isPresent()) {
-            if (existingReaction.get().getReactionType().equals(reactionType)) {
-                // If same reaction type, remove it (toggle behavior)
+    public boolean toggleReaction(String userId, String postId) {
+        try {
+            Optional<Reaction> existingReaction = reactionRepository.findByUserIdAndPostId(userId, postId);
+
+            Post post = postRepository.findById(postId)
+                    .orElseThrow(() -> new RuntimeException("Post not found"));
+
+            if (existingReaction.isPresent()) {
                 reactionRepository.delete(existingReaction.get());
-                updatePostReactionCounts(postId);
-                return null;
-            } else {
-                // If different reaction type, remove old one
-                reactionRepository.delete(existingReaction.get());
+                updatePostReactionCount(postId);
+                return false;
             }
+
+            Reaction newReaction = new Reaction(userId, postId);
+            reactionRepository.save(newReaction);
+            updatePostReactionCount(postId);
+            return true;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to toggle reaction: " + e.getMessage());
         }
-
-        // Create new reaction
-        Reaction reaction = new Reaction(userId, postId, reactionType);
-        reaction = reactionRepository.save(reaction);
-
-        // Update post reaction counts
-        updatePostReactionCounts(postId);
-
-        return reaction;
     }
 
-    public void removeReaction(String userId, String postId) {
-        reactionRepository.deleteByUserIdAndPostId(userId, postId);
-        updatePostReactionCounts(postId);
-    }
-
-    private void updatePostReactionCounts(String postId) {
-        Post post = postRepository.findById(postId).orElseThrow();
-        Map<String, Integer> counts = new HashMap<>();
-
-        // Count reactions by type
-        reactionRepository.findByPostId(postId).forEach(reaction -> {
-            counts.merge(reaction.getReactionType(), 1, Integer::sum);
-        });
-
-        post.setReactionCounts(counts);
-        postRepository.save(post);
-    }
-
-    public Map<String, Long> getReactionCounts(String postId) {
-        Map<String, Long> counts = new HashMap<>();
-        String[] reactionTypes = { "LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY" };
-
-        for (String type : reactionTypes) {
-            long count = reactionRepository.countByPostIdAndReactionType(postId, type);
-            if (count > 0) {
-                counts.put(type, count);
-            }
+    private void updatePostReactionCount(String postId) {
+        try {
+            Post post = postRepository.findById(postId)
+                    .orElseThrow(() -> new RuntimeException("Post not found"));
+            long likeCount = reactionRepository.countByPostId(postId);
+            post.setLikes((int) likeCount);
+            postRepository.save(post);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to update reaction count: " + e.getMessage());
         }
-
-        return counts;
     }
 
-    public Optional<Reaction> getUserReaction(String userId, String postId) {
-        return reactionRepository.findByUserIdAndPostId(userId, postId);
+    public long getReactionCount(String postId) {
+        return reactionRepository.countByPostId(postId);
+    }
+
+    public boolean hasUserReacted(String userId, String postId) {
+        return reactionRepository.findByUserIdAndPostId(userId, postId).isPresent();
     }
 }
