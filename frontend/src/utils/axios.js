@@ -22,6 +22,17 @@ axiosInstance.interceptors.request.use(
         config.headers.Authorization = `Basic ${credentials}`;
       }
 
+      // Add userId to header using the Authorization approach instead of a separate header
+      // This avoids CORS issues with the userId header
+      if (user?.id) {
+        // Include the user ID in the Authorization header or as a query parameter instead
+        if (config.url.includes('?')) {
+          config.url = `${config.url}&userId=${user.id}`;
+        } else {
+          config.url = `${config.url}?userId=${user.id}`;
+        }
+      }
+
       // Special handling for media requests
       if (config.url?.includes("/api/media/")) {
         config.responseType = 'blob';
@@ -37,72 +48,26 @@ axiosInstance.interceptors.request.use(
 
       return config;
     } catch (error) {
-      console.error("Auth error:", error);
+      console.error("Error preparing request:", error);
       return config;
     }
   },
   (error) => Promise.reject(error)
 );
 
-// Update response interceptor with better error handling
+// Add response interceptor for better error handling
 axiosInstance.interceptors.response.use(
-  (response) => {
-    if (response.config.responseType === 'blob') {
-      // Check if the blob is an error response
-      if (response.data.type === 'application/json') {
-        return response.data.text().then(text => {
-          const error = JSON.parse(text);
-          return Promise.reject(error);
-        });
-      }
-      // Create object URL for media
-      const blobUrl = URL.createObjectURL(response.data);
-      response.data = blobUrl;
-    }
-    return response;
-  },
+  (response) => response,
   (error) => {
-    if (error.code === "ERR_NETWORK") {
-      console.error("Network Error - Backend may be down:", error);
-      // Add retry logic for media requests
-      if (error.config?.url?.includes("/api/media/")) {
-        const retryConfig = {
-          ...error.config,
-          retry: (error.config.retry || 0) + 1,
-        };
-        if (retryConfig.retry <= 3) {
-          return new Promise(resolve => setTimeout(resolve, 1000))
-            .then(() => axiosInstance.request(retryConfig));
-        }
-      }
-    } else if (error.response?.status === 403) {
-      console.error("Authentication error:", error);
-      localStorage.removeItem("user");
-      window.location.href = "/login";
+    if (error.response && error.response.status === 403) {
+      console.log('Access forbidden. You may need to login again.');
+    } else if (error.code === 'ERR_NETWORK') {
+      console.log('Network error. Backend server might be down.');
+    } else if (error.message && error.message.includes('CORS')) {
+      console.log('CORS error. Check backend CORS configuration.');
     }
     return Promise.reject(error);
   }
 );
-
-// Add cleanup utility 
-axiosInstance.revokeObjectURL = (url) => {
-  if (url && url.startsWith('blob:')) {
-    URL.revokeObjectURL(url);
-  }
-};
-
-// Add new method for media uploads with custom timeout
-axiosInstance.uploadMedia = (url, data, options = {}) => {
-  return axiosInstance({
-    url,
-    method: 'POST',
-    data,
-    timeout: 120000, // 2 minutes timeout for uploads
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    ...options,
-  });
-};
 
 export default axiosInstance;

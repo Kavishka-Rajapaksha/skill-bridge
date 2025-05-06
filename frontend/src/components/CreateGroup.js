@@ -1,42 +1,110 @@
-import React, { useState } from 'react';
-import axiosInstance from '../utils/axios';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-function CreateGroup({ open, onClose, onCreateSuccess }) {
+function CreateGroup({ open, onClose, onCreateSuccess, userId, token }) {
   const [groupData, setGroupData] = useState({
     name: '',
     description: ''
   });
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  
+  const API_BASE_URL = 'http://localhost:8081';
+  
+  // Reset form when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      setGroupData({ name: '', description: '' });
+      setError('');
+    }
+  }, [open]);
+  
   const handleChange = (e) => {
     setGroupData({
       ...groupData,
       [e.target.name]: e.target.value
     });
+    setError('');
   };
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!open) return; // Don't submit if modal is closed
+    
+    setIsSubmitting(true);
+    setError('');
+    
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (!user || !user.id) {
-        alert('Please login first');
+      // Validate the required fields
+      if (!groupData.name.trim()) {
+        setError('Group name is required');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Use the props instead of trying to access localStorage directly
+      if (!userId) {
+        setError('Authentication error. Please log in again.');
+        setIsSubmitting(false);
         return;
       }
       
       const data = {
-        name: groupData.name,
-        description: groupData.description,
-        createdBy: user.id,
-        members: [user.id]
+        name: groupData.name.trim(),
+        description: groupData.description.trim(),
+        createdBy: userId
       };
 
-      const response = await axiosInstance.post('/api/groups', data);
+      // Try all possible endpoint patterns
+      let response;
+      try {
+        // Try first endpoint pattern with query parameters instead of headers
+        response = await axios.post(`${API_BASE_URL}/api/groups`, data, {
+          params: { userId: userId },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      } catch (firstError) {
+        console.log('First endpoint failed, trying alternate endpoint');
+        response = await axios.post(`${API_BASE_URL}/api/v1/groups`, data, {
+          params: { userId: userId },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
       onCreateSuccess(response.data);
       setGroupData({ name: '', description: '' });
-      onClose();
     } catch (error) {
       console.error('Error creating group:', error);
-      alert('Failed to create group. Please try again.');
+      
+      if (error.message === 'Network Error') {
+        setError('Server is not responding. Please ensure the backend server is running.');
+      } else if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          setError('Authentication error: ' + (
+            typeof error.response.data === 'string' 
+              ? error.response.data 
+              : 'Full authentication is required to access this resource'
+          ));
+        } else if (error.response.status === 404) {
+          setError('API endpoint not found. Please contact the administrator.');
+        } else if (error.response.data && typeof error.response.data === 'string') {
+          setError(error.response.data);
+        } else if (error.response.data && error.response.data.message) {
+          setError(error.response.data.message);
+        } else {
+          setError(`Error: ${error.response.status} - ${error.response.statusText}`);
+        }
+      } else {
+        setError('Failed to create group. Please try again later.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -50,6 +118,11 @@ function CreateGroup({ open, onClose, onCreateSuccess }) {
         </div>
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-400 p-4 text-red-700">
+                <p>{error}</p>
+              </div>
+            )}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                 Group Name
@@ -61,6 +134,7 @@ function CreateGroup({ open, onClose, onCreateSuccess }) {
                 required
                 value={groupData.name}
                 onChange={handleChange}
+                disabled={isSubmitting}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -71,10 +145,10 @@ function CreateGroup({ open, onClose, onCreateSuccess }) {
               <textarea
                 id="description"
                 name="description"
-                required
                 rows="4"
                 value={groupData.description}
                 onChange={handleChange}
+                disabled={isSubmitting}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -83,15 +157,17 @@ function CreateGroup({ open, onClose, onCreateSuccess }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              Create Group
+              {isSubmitting ? 'Creating...' : 'Create Group'}
             </button>
           </div>
         </form>

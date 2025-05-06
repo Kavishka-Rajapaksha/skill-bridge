@@ -3,6 +3,7 @@ package com.example.backend.controller;
 import com.example.backend.model.Reaction;
 import com.example.backend.service.ReactionService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,34 +17,37 @@ public class ReactionController {
     @Autowired
     private ReactionService reactionService;
 
-    @PostMapping
-    public ResponseEntity<?> addReaction(
-            @RequestParam String userId,
-            @RequestParam String postId,
-            @RequestParam String type) {
-        Reaction reaction = reactionService.addReaction(userId, postId, type);
-        Map<String, Long> updatedCounts = reactionService.getReactionCounts(postId);
-        return ResponseEntity.ok(updatedCounts);
+    @GetMapping("/{postId}/stats")
+    public ResponseEntity<?> getReactionStats(@PathVariable String postId) {
+        return ResponseEntity.ok(reactionService.getReactionStats(postId));
     }
 
-    @DeleteMapping
-    public ResponseEntity<?> removeReaction(
-            @RequestParam String userId,
-            @RequestParam String postId) {
-        reactionService.removeReaction(userId, postId);
-        Map<String, Long> updatedCounts = reactionService.getReactionCounts(postId);
-        return ResponseEntity.ok(updatedCounts);
-    }
-
-    @GetMapping("/post/{postId}")
-    public ResponseEntity<Map<String, Long>> getReactionCounts(@PathVariable String postId) {
-        return ResponseEntity.ok(reactionService.getReactionCounts(postId));
-    }
-
-    @GetMapping("/user")
+    @GetMapping("/{postId}/user/{userId}")
     public ResponseEntity<?> getUserReaction(
-            @RequestParam String userId,
-            @RequestParam String postId) {
-        return ResponseEntity.ok(reactionService.getUserReaction(userId, postId));
+            @PathVariable String postId,
+            @PathVariable String userId) {
+        Reaction reaction = reactionService.getUserReaction(postId, userId);
+        if (reaction == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(reaction);
+    }
+
+    @PostMapping("/{postId}")
+    public ResponseEntity<?> addReaction(
+            @PathVariable String postId,
+            @RequestBody Map<String, String> payload) {
+        return ResponseEntity.ok(reactionService.addReaction(
+                postId,
+                payload.get("userId"),
+                payload.get("type")));
+    }
+
+    @DeleteMapping("/{postId}/user/{userId}")
+    public ResponseEntity<?> removeReaction(
+            @PathVariable String postId,
+            @PathVariable String userId) {
+        reactionService.removeReaction(postId, userId);
+        return ResponseEntity.ok().build();
     }
 }
