@@ -96,6 +96,16 @@ public class PostController {
         return ResponseEntity.ok(postService.getUserPosts(userId));
     }
 
+    @GetMapping("/posts/{postId}")
+    public ResponseEntity<?> getPostById(@PathVariable String postId) {
+        try {
+            PostResponse post = postService.getPostById(postId);
+            return ResponseEntity.ok(post);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @DeleteMapping("/posts/{postId}")
     public ResponseEntity<?> deletePost(
             @PathVariable String postId,

@@ -17,6 +17,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(Date.now());
   const user = JSON.parse(localStorage.getItem("user"));
 
   useEffect(() => {
@@ -99,12 +100,44 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     };
   }, [post.videoUrl, post.imageUrls]);
 
+  const refreshPostData = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/posts/${post.id}`);
+      if (response.data) {
+        setCommentCount(response.data.comments?.length || 0);
+        onPostUpdated?.(response.data);
+        setLastRefreshed(Date.now());
+      }
+    } catch (error) {
+      console.error("Error refreshing post data:", error);
+    }
+  };
+
+  useEffect(() => {
+    let refreshInterval;
+
+    if (!showComments) {
+      refreshInterval = setInterval(() => {
+        refreshPostData();
+      }, 30000);
+    }
+
+    return () => {
+      if (refreshInterval) clearInterval(refreshInterval);
+    };
+  }, [showComments, post.id]);
+
+  const handleReactionChange = (reactionData) => {
+    setTimeout(() => {
+      refreshPostData();
+    }, 500);
+  };
+
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
     try {
       setDeleting(true);
-      // Add isAdmin flag when admin is deleting someone else's post
       if (isUserAdmin && user.id !== post.userId) {
         await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}&isAdmin=true`);
       } else {
@@ -411,9 +444,8 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
             <ReactionButton
               postId={post.id}
               userId={user.id}
-              onReactionChange={() => {
-                // Optionally refresh post data or handle reaction changes
-              }}
+              onReactionChange={handleReactionChange}
+              key={`reaction-${lastRefreshed}`}
               renderButton={({ liked, count, onClick, loading }) => (
                 <button 
                   onClick={onClick}
@@ -482,7 +514,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
               }`}
             >
               <svg
-                className="w-5 h-5"
+                className={`w-5 h-5 ${commentCount > 0 ? 'text-blue-500' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -525,6 +557,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
             postOwnerId={post.userId}
             showInput={showCommentInput}
             onCommentCountChange={handleCommentCountChange}
+            key={`comments-${lastRefreshed}`}
           />
         </div>
       )}
