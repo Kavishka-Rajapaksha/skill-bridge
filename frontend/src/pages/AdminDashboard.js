@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axiosInstance from "../utils/axios";
 import Header from "../components/Header";
+import AdminSidebar from "../components/AdminSidebar";
 
 function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -20,6 +21,7 @@ function AdminDashboard() {
     values: [],
     maxValue: 10
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const navigate = useNavigate();
   const chartRef = useRef(null);
 
@@ -426,320 +428,441 @@ function AdminDashboard() {
 
   if (loading) {
     return (
-      <>
-        <div className="flex justify-center items-center min-h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-indigo-600 border-opacity-75"></div>
+          <div className="absolute top-0 left-0 right-0 bottom-0 flex justify-center items-center">
+            <div className="h-8 w-8 bg-indigo-600 rounded-full animate-pulse"></div>
+          </div>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <div className="flex">
-        <div className={`bg-gray-800 text-white w-64 min-h-screen flex-shrink-0 ${sidebarOpen ? 'block' : 'hidden'} md:block`}>
-          <div className="p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Admin Panel</h2>
-              <button 
-                className="md:hidden text-white focus:outline-none" 
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+    <div className="flex h-screen bg-gray-50">
+      {/* Replace the sidebar with AdminSidebar component */}
+      <AdminSidebar user={user} />
+      
+      {/* Mobile sidebar toggle */}
+      <div className="md:hidden fixed bottom-6 right-6 z-40">
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 focus:outline-none"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            {sidebarOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 overflow-auto">
+        {/* Top navigation */}
+        <div className="bg-white shadow-sm sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex">
+                <div className="flex-shrink-0 flex items-center">
+                  <h1 className="text-xl font-bold text-gray-900">SkillBridge Admin</h1>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <div className="ml-4 flex items-center md:ml-6">
+                  <button className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none">
+                    <span className="sr-only">View notifications</span>
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                  </button>
+
+                  <div className="ml-3 relative">
+                    <div className="flex items-center">
+                      <button className="max-w-xs bg-white rounded-full flex items-center text-sm focus:outline-none hover:ring-2 hover:ring-offset-2 hover:ring-indigo-500">
+                        <span className="sr-only">Open user menu</span>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                          {user?.firstName?.charAt(0) || 'A'}
+                        </div>
+                      </button>
+                      <span className="ml-2 text-sm font-medium text-gray-700 hidden md:block">
+                        {user?.firstName || 'Admin'} {user?.lastName || ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <nav className="mt-4">
-            <div className="px-4 py-2">
-              <p className="text-xs uppercase tracking-wider text-gray-400">Main</p>
-              <Link 
-                to="/admin/dashboard" 
-                className="mt-2 flex items-center px-4 py-2 text-sm rounded-md bg-gray-700 text-white hover:bg-gray-600"
-              >
-                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                Dashboard
-              </Link>
-            </div>
-            
-            <div className="mt-4 px-4 py-2">
-              <p className="text-xs uppercase tracking-wider text-gray-400">User Management</p>
-              <div className="mt-2 space-y-1">
-                <Link 
-                  to="/admin/users/add" 
-                  className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Add User
-                </Link>
-                
-                <Link 
-                  to="/admin/users" 
-                  className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  Manage Users
-                </Link>
-                
-                <Link 
-                  to="/admin/users/blocked" 
-                  className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                  Blocked Users
-                </Link>
-              </div>
-            </div>
-            
-            <div className="mt-4 px-4 py-2">
-              <p className="text-xs uppercase tracking-wider text-gray-400">Content</p>
-              <div className="mt-2 space-y-1">
-                <Link 
-                  to="/admin/posts" 
-                  className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Manage Posts
-                </Link>
-                
-                <Link 
-                  to="/admin/comments" 
-                  className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-                >
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                  </svg>
-                  Manage Comments
-                </Link>
-              </div>
-            </div>
-            
-            <div className="mt-4 px-4 py-2">
-              <p className="text-xs uppercase tracking-wider text-gray-400">Settings</p>
-              <Link 
-                to="/admin/settings" 
-                className="mt-2 flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
-              >
-                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                System Settings
-              </Link>
-            </div>
-          </nav>
         </div>
-        
-        <div className="md:hidden fixed bottom-4 right-4 z-50">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg focus:outline-none"
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {sidebarOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
-        </div>
-        
-        <div className="flex-1 min-w-0 overflow-auto">
-          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <div className="px-4 py-6 sm:px-0">
-              <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
-              
-              <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalUsers}</dd>
-                    </dl>
-                  </div>
-                  <div className="bg-gray-50 px-4 py-3">
-                    <div className="text-sm">
-                      <Link to="/admin/users" className="font-medium text-indigo-600 hover:text-indigo-500">
-                        View all users
-                      </Link>
+
+        <div className="py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Dashboard header */}
+            <div className="pb-5 border-b border-gray-200 mb-5 flex items-center justify-between">
+              <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Dashboard Overview</h2>
+              <div className="flex">
+                <span className="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  Active
+                </span>
+              </div>
+            </div>
+
+            {/* Stats cards */}
+            <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Total Users Card */}
+              <div className="bg-white overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                        <dd className="flex items-baseline">
+                          <div className="text-2xl font-bold text-gray-900">{stats.totalUsers}</div>
+                          <div className="ml-2 flex items-baseline text-sm font-semibold text-green-600">
+                            <svg className="self-center flex-shrink-0 h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <span className="sr-only">Increased by</span>
+                            {stats.newUsersToday}%
+                          </div>
+                        </dd>
+                      </dl>
                     </div>
                   </div>
                 </div>
-
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Today Total Posts</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.todayPosts}</dd>
-                    </dl>
-                  </div>
-                  <div className="bg-gray-50 px-4 py-3">
-                    <div className="text-sm">
-                      <Link to="/admin/posts" className="font-medium text-indigo-600 hover:text-indigo-500">
-                        View all posts
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">New Users Today</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.newUsersToday}</dd>
-                    </dl>
-                  </div>
-                </div>
-
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Active Users</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.activeUsers}</dd>
-                    </dl>
+                <div className="bg-gray-50 px-5 py-3 border-t border-gray-200">
+                  <div className="text-sm">
+                    <Link to="/admin/users" className="font-medium text-indigo-600 hover:text-indigo-900 transition duration-150 ease-in-out">
+                      View all
+                    </Link>
                   </div>
                 </div>
               </div>
 
-              <ChartContainer data={userChartData} />
-
-              <div className="mt-8">
-                <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>
-                <div className="mt-4 flex flex-col">
-                  <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                    <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Name
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Email
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Joined
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {recentUsers.map((user) => (
-                              <tr key={user.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-500">{user.email}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {new Date(user.createdAt).toLocaleDateString()}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+              {/* Today's Posts Card */}
+              <div className="bg-white overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                      </svg>
                     </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Today's Posts</dt>
+                        <dd className="flex items-baseline">
+                          <div className="text-2xl font-bold text-gray-900">{stats.todayPosts}</div>
+                          <div className="ml-2 flex items-baseline text-sm font-semibold text-green-600">
+                            <svg className="self-center flex-shrink-0 h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <span className="sr-only">Increased by</span>
+                            12%
+                          </div>
+                        </dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-5 py-3 border-t border-gray-200">
+                  <div className="text-sm">
+                    <Link to="/admin/posts" className="font-medium text-indigo-600 hover:text-indigo-900 transition duration-150 ease-in-out">
+                      View all
+                    </Link>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8">
-                <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>
-                <div className="mt-4 flex flex-col">
-                  <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                    <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Title
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Author
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Created
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {recentPosts.map((post) => (
-                              <tr key={post.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{post.title}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-500">{post.username}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {new Date(post.createdAt).toLocaleDateString()}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+              {/* New Users Today Card */}
+              <div className="bg-white overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
                     </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">New Users Today</dt>
+                        <dd className="flex items-baseline">
+                          <div className="text-2xl font-bold text-gray-900">{stats.newUsersToday}</div>
+                          <div className="ml-2 flex items-baseline text-sm font-semibold text-green-600">
+                            <svg className="self-center flex-shrink-0 h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <span className="sr-only">Increased by</span>
+                            20%
+                          </div>
+                        </dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-5 py-3 border-t border-gray-200">
+                  <div className="text-sm">
+                    <Link to="/admin/users/new" className="font-medium text-indigo-600 hover:text-indigo-900 transition duration-150 ease-in-out">
+                      Details
+                    </Link>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">User Management</h3>
-                    <div className="mt-5">
-                      <Link 
-                        to="/admin/users" 
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-                      >
-                        Manage Users
-                      </Link>
+              {/* Active Users Card */}
+              <div className="bg-white overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Active Users</dt>
+                        <dd className="flex items-baseline">
+                          <div className="text-2xl font-bold text-gray-900">{stats.activeUsers}</div>
+                          <div className="ml-2 flex items-baseline text-sm font-semibold text-green-600">
+                            <svg className="self-center flex-shrink-0 h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <span className="sr-only">Increased by</span>
+                            5%
+                          </div>
+                        </dd>
+                      </dl>
                     </div>
                   </div>
                 </div>
-
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">Content Moderation</h3>
-                    <div className="mt-5">
-                      <Link 
-                        to="/admin/posts" 
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-                      >
-                        Moderate Posts
-                      </Link>
-                    </div>
+                <div className="bg-gray-50 px-5 py-3 border-t border-gray-200">
+                  <div className="text-sm">
+                    <Link to="/admin/users/active" className="font-medium text-indigo-600 hover:text-indigo-900 transition duration-150 ease-in-out">
+                      Details
+                    </Link>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">System Settings</h3>
-                    <div className="mt-5">
-                      <Link 
-                        to="/admin/settings" 
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+            {/* User Growth Chart */}
+            <div className="mt-8">
+              <div className="bg-white shadow-md rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                <div className="px-6 py-5 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">User Growth</h3>
+                    <button 
+                      onClick={() => {
+                        setIsRefreshing(true);
+                        setTimeout(() => {
+                          generateSampleChartData();
+                          setIsRefreshing(false);
+                        }, 600);
+                      }}
+                      className="text-indigo-600 hover:text-indigo-800 flex items-center text-sm focus:outline-none transition duration-150"
+                    >
+                      <svg 
+                        className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
                       >
-                        System Settings
-                      </Link>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh Data
+                    </button>
+                  </div>
+                </div>
+                <div className="px-6 py-5">
+                  <SimpleLineChart data={userChartData} height={320} />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
+              {/* Recent Users Table */}
+              <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                <div className="px-6 py-5 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Recent Users</h3>
+                    <Link to="/admin/users" className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                      View all
+                    </Link>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Email
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Joined
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {recentUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-50 transition-colors duration-150">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
+                                {user.firstName?.charAt(0) || 'U'}
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">{user.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">{new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent Posts Table */}
+              <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                <div className="px-6 py-5 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Recent Posts</h3>
+                    <Link to="/admin/posts" className="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                      View all
+                    </Link>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Title
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Author
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {recentPosts.map((post) => (
+                        <tr key={post.id} className="hover:bg-gray-50 transition-colors duration-150">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{post.title}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="h-7 w-7 rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 flex items-center justify-center text-white">
+                                {post.username?.charAt(0) || 'U'}
+                              </div>
+                              <div className="ml-3">
+                                <div className="text-sm text-gray-500">{post.username}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">{new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="mt-8 mb-12 grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 overflow-hidden shadow-md rounded-lg hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                <div className="px-6 py-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-indigo-600 p-3 rounded-md">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
                     </div>
+                    <div className="ml-4">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">User Management</h3>
+                      <p className="mt-1 text-sm text-gray-500">Manage your platform users and permissions.</p>
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <Link 
+                      to="/admin/users" 
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Manage Users
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 overflow-hidden shadow-md rounded-lg hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                <div className="px-6 py-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-gradient-to-r from-purple-500 to-purple-600 p-3 rounded-md">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">Content Moderation</h3>
+                      <p className="mt-1 text-sm text-gray-500">Review and moderate user-generated content.</p>
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <Link 
+                      to="/admin/posts" 
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                    >
+                      Moderate Posts
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden shadow-md rounded-lg hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                <div className="px-6 py-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-gradient-to-r from-blue-500 to-blue-600 p-3 rounded-md">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">System Settings</h3>
+                      <p className="mt-1 text-sm text-gray-500">Configure platform settings and appearance.</p>
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <Link 
+                      to="/admin/settings" 
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      System Settings
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -747,7 +870,7 @@ function AdminDashboard() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
