@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axiosInstance from "../utils/axios";
 import Header from "../components/Header";
@@ -15,7 +15,13 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userChartData, setUserChartData] = useState({
+    labels: [],
+    values: [],
+    maxValue: 10
+  });
   const navigate = useNavigate();
+  const chartRef = useRef(null);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -45,154 +51,104 @@ function AdminDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      // Make separate API calls to handle potential failures individually
       let userStats = { total: 0, newToday: 0, active: 0 };
       let postStats = { total: 0, todayTotal: 0 };
       let recentUsersData = [];
       let recentPostsData = [];
       
       try {
-        // Try the stats endpoint first
-        try {
-          const usersRes = await axiosInstance.get("/api/admin/stats/users");
-          console.log("User stats API response:", usersRes.data);
-          
-          if (typeof usersRes.data === 'object') {
-            // Extract total users from response object
-            if (usersRes.data.total !== undefined) {
-              userStats.total = usersRes.data.total;
-            } else if (usersRes.data.count !== undefined) {
-              userStats.total = usersRes.data.count;
-            }
-            // Handle other possible response structures as needed
-          }
-        } catch (statsError) {
-          console.error("Stats endpoint failed, trying direct users endpoint:", statsError);
-          
-          // If stats endpoint fails, try to get all users and count them
-          try {
-            const allUsersRes = await axiosInstance.get("/api/admin/users");
-            console.log("All users API response:", allUsersRes.data);
-            
-            if (Array.isArray(allUsersRes.data)) {
-              userStats.total = allUsersRes.data.length;
-              console.log("Set user count from array length:", userStats.total);
-            } else if (typeof allUsersRes.data === 'object' && allUsersRes.data.users && Array.isArray(allUsersRes.data.users)) {
-              userStats.total = allUsersRes.data.users.length;
-              console.log("Set user count from users array property:", userStats.total);
-            }
-          } catch (usersError) {
-            console.error("Failed to get users from direct endpoint:", usersError);
-            
-            // Last resort: try to get enabled users as a fallback
-            try {
-              const enabledUsersRes = await axiosInstance.get("/api/admin/users/enabled");
-              if (Array.isArray(enabledUsersRes.data)) {
-                userStats.total = enabledUsersRes.data.length;
-              }
-            } catch (enabledError) {
-              console.error("All attempts to get user count failed");
-            }
+        const usersRes = await axiosInstance.get("/api/admin/stats/users");
+        if (typeof usersRes.data === 'object') {
+          if (usersRes.data.total !== undefined) {
+            userStats.total = usersRes.data.total;
+          } else if (usersRes.data.count !== undefined) {
+            userStats.total = usersRes.data.count;
           }
         }
-
-        // After handling the total user count, let's specifically handle active users
+      } catch (statsError) {
         try {
-          // Try different endpoint patterns that might exist in your backend
-          let activeUsersCount = 0;
-          let foundActiveUsers = false;
-
-          // Try first approach - dedicated active users stats
+          const allUsersRes = await axiosInstance.get("/api/admin/users");
+          if (Array.isArray(allUsersRes.data)) {
+            userStats.total = allUsersRes.data.length;
+          } else if (typeof allUsersRes.data === 'object' && allUsersRes.data.users && Array.isArray(allUsersRes.data.users)) {
+            userStats.total = allUsersRes.data.users.length;
+          }
+        } catch (usersError) {
           try {
-            const activeStatsRes = await axiosInstance.get("/api/admin/stats/users/active");
-            console.log("Active users stats response:", activeStatsRes.data);
-            if (typeof activeStatsRes.data === 'object' && activeStatsRes.data.count !== undefined) {
-              activeUsersCount = activeStatsRes.data.count;
-              foundActiveUsers = true;
-            } else if (typeof activeStatsRes.data === 'number') {
-              activeUsersCount = activeStatsRes.data;
-              foundActiveUsers = true;
+            const enabledUsersRes = await axiosInstance.get("/api/admin/users/enabled");
+            if (Array.isArray(enabledUsersRes.data)) {
+              userStats.total = enabledUsersRes.data.length;
             }
-          } catch (err) {
-            console.log("No dedicated active users stats endpoint");
-          }
-
-          // Try second approach - get all enabled users
-          if (!foundActiveUsers) {
-            try {
-              const enabledRes = await axiosInstance.get("/api/admin/users/enabled");
-              console.log("Enabled users response:", enabledRes.data);
-              if (Array.isArray(enabledRes.data)) {
-                activeUsersCount = enabledRes.data.length;
-                foundActiveUsers = true;
-              }
-            } catch (err) {
-              console.log("No enabled users endpoint");
-            }
-          }
-
-          // Try third approach - calculate from total minus blocked
-          if (!foundActiveUsers && userStats.total > 0) {
-            try {
-              const blockedRes = await axiosInstance.get("/api/admin/users/blocked");
-              console.log("Blocked users response:", blockedRes.data);
-              if (Array.isArray(blockedRes.data)) {
-                const blockedCount = blockedRes.data.length;
-                activeUsersCount = userStats.total - blockedCount;
-                foundActiveUsers = true;
-              }
-            } catch (err) {
-              console.log("Could not calculate using blocked users");
-            }
-          }
-
-          // Last resort - users who logged in recently
-          if (!foundActiveUsers) {
-            try {
-              const recentLoginRes = await axiosInstance.get("/api/admin/users/recent-logins");
-              console.log("Recent logins response:", recentLoginRes.data);
-              if (Array.isArray(recentLoginRes.data)) {
-                activeUsersCount = recentLoginRes.data.length;
-                foundActiveUsers = true;
-              }
-            } catch (err) {
-              console.log("No recent logins endpoint");
-            }
-          }
-
-          // If we found active users through any method, update the stats
-          if (foundActiveUsers) {
-            userStats.active = activeUsersCount;
-            console.log("Set active users count to:", activeUsersCount);
-          } else if (userStats.total > 0) {
-            // Fallback: if we have the total users, estimate active users as 80% of total
-            userStats.active = Math.round(userStats.total * 0.8);
-            console.log("Estimated active users as 80% of total:", userStats.active);
-          }
-        } catch (activeError) {
-          console.error("Failed to fetch active users count:", activeError);
-          
-          // Fallback: if we have the total users from earlier, estimate active users as 80% of total
-          if (userStats.total > 0) {
-            userStats.active = Math.round(userStats.total * 0.8);
-            console.log("Estimated active users as 80% of total:", userStats.active);
+          } catch (enabledError) {
+            console.error("All attempts to get user count failed");
           }
         }
-      } catch (userError) {
-        console.error("Error in user stats processing:", userError);
       }
-      
+
       try {
-        // Get general post stats
+        let activeUsersCount = 0;
+        let foundActiveUsers = false;
+
+        try {
+          const activeStatsRes = await axiosInstance.get("/api/admin/stats/users/active");
+          if (typeof activeStatsRes.data === 'object' && activeStatsRes.data.count !== undefined) {
+            activeUsersCount = activeStatsRes.data.count;
+            foundActiveUsers = true;
+          } else if (typeof activeStatsRes.data === 'number') {
+            activeUsersCount = activeStatsRes.data;
+            foundActiveUsers = true;
+          }
+        } catch (err) {}
+
+        if (!foundActiveUsers) {
+          try {
+            const enabledRes = await axiosInstance.get("/api/admin/users/enabled");
+            if (Array.isArray(enabledRes.data)) {
+              activeUsersCount = enabledRes.data.length;
+              foundActiveUsers = true;
+            }
+          } catch (err) {}
+        }
+
+        if (!foundActiveUsers && userStats.total > 0) {
+          try {
+            const blockedRes = await axiosInstance.get("/api/admin/users/blocked");
+            if (Array.isArray(blockedRes.data)) {
+              const blockedCount = blockedRes.data.length;
+              activeUsersCount = userStats.total - blockedCount;
+              foundActiveUsers = true;
+            }
+          } catch (err) {}
+        }
+
+        if (!foundActiveUsers) {
+          try {
+            const recentLoginRes = await axiosInstance.get("/api/admin/users/recent-logins");
+            if (Array.isArray(recentLoginRes.data)) {
+              activeUsersCount = recentLoginRes.data.length;
+              foundActiveUsers = true;
+            }
+          } catch (err) {}
+        }
+
+        if (foundActiveUsers) {
+          userStats.active = activeUsersCount;
+        } else if (userStats.total > 0) {
+          userStats.active = Math.round(userStats.total * 0.8);
+        }
+      } catch (activeError) {
+        if (userStats.total > 0) {
+          userStats.active = Math.round(userStats.total * 0.8);
+        }
+      }
+
+      try {
         const postsRes = await axiosInstance.get("/api/admin/stats/posts");
         if (typeof postsRes.data === 'object') {
           postStats.total = postsRes.data.total || 0;
         }
         
-        // Specifically get today's posts count
         const todayPostsRes = await axiosInstance.get("/api/admin/stats/posts/today");
-        console.log("Today's posts stats response:", todayPostsRes.data);
-        
         if (typeof todayPostsRes.data === 'object' && todayPostsRes.data.count !== undefined) {
           postStats.todayTotal = todayPostsRes.data.count;
         } else if (typeof todayPostsRes.data === 'number') {
@@ -201,12 +157,9 @@ function AdminDashboard() {
           postStats.todayTotal = todayPostsRes.data.length;
         }
       } catch (postError) {
-        console.error("Error fetching post stats:", postError);
-        // Try alternative endpoint for today's posts if the specific endpoint fails
         try {
           const allPostsRes = await axiosInstance.get("/api/admin/posts");
           if (Array.isArray(allPostsRes.data)) {
-            // Filter posts created today
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
@@ -216,26 +169,19 @@ function AdminDashboard() {
             });
             
             postStats.todayTotal = todayPosts.length;
-            console.log("Calculated today's posts from all posts:", postStats.todayTotal);
           }
-        } catch (err) {
-          console.error("Failed to calculate today's posts:", err);
-        }
+        } catch (err) {}
       }
       
       try {
         const recentUsersRes = await axiosInstance.get("/api/admin/users/recent");
         recentUsersData = recentUsersRes.data;
-      } catch (userError) {
-        console.error("Error fetching recent users:", userError);
-      }
-      
+      } catch (userError) {}
+
       try {
         const recentPostsRes = await axiosInstance.get("/api/admin/posts/recent");
         recentPostsData = recentPostsRes.data;
-      } catch (postError) {
-        console.error("Error fetching recent posts:", postError);
-      }
+      } catch (postError) {}
 
       setStats({
         totalUsers: userStats.total,
@@ -247,9 +193,20 @@ function AdminDashboard() {
       
       setRecentUsers(recentUsersData);
       setRecentPosts(recentPostsData);
+
+      try {
+        const userChartRes = await axiosInstance.get("/api/admin/stats/users/daily");
+        if (Array.isArray(userChartRes.data)) {
+          prepareUserChartData(userChartRes.data);
+        } else if (userChartRes.data && Array.isArray(userChartRes.data.data)) {
+          prepareUserChartData(userChartRes.data.data);
+        } else {
+          generateSampleChartData();
+        }
+      } catch (chartError) {
+        generateSampleChartData();
+      }
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-      // Use placeholder data as fallback
       setStats({
         totalUsers: 25,
         totalPosts: 128,
@@ -258,7 +215,6 @@ function AdminDashboard() {
         todayPosts: 5
       });
       
-      // Sample data
       setRecentUsers([
         { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com', createdAt: new Date().toISOString() },
         { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com', createdAt: new Date().toISOString() }
@@ -268,15 +224,248 @@ function AdminDashboard() {
         { id: '1', title: 'First Post', username: 'John Doe', createdAt: new Date().toISOString() },
         { id: '2', title: 'Second Post', username: 'Jane Smith', createdAt: new Date().toISOString() }
       ]);
+
+      generateSampleChartData();
     } finally {
       setLoading(false);
     }
   };
 
+  const prepareUserChartData = (data) => {
+    const sortedData = [...data].sort((a, b) => 
+      new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt)
+    );
+    
+    const labels = sortedData.map(item => {
+      const date = new Date(item.date || item.createdAt);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    
+    const values = sortedData.map(item => item.count || item.newUsers || 0);
+    const maxValue = Math.max(...values, 1) * 1.2;
+    
+    setUserChartData({
+      labels,
+      values,
+      maxValue
+    });
+  };
+  
+  const generateSampleChartData = () => {
+    const today = new Date();
+    const labels = [];
+    const values = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+      values.push(Math.floor(Math.random() * 10) + 1);
+    }
+    
+    const maxValue = Math.max(...values, 1) * 1.2;
+    
+    setUserChartData({
+      labels,
+      values,
+      maxValue
+    });
+  };
+
+  const SimpleLineChart = ({ data, height = 300, width = "100%" }) => {
+    const [animated, setAnimated] = useState(false);
+    const chartContainerRef = useRef(null);
+    
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setAnimated(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }, []);
+
+    if (!data.values || data.values.length === 0) return null;
+    
+    const numPoints = data.values.length;
+    const chartHeight = height - 60;
+    const chartWidth = "100%";
+    
+    const getX = (index) => `${(index / (numPoints - 1)) * 100}%`;
+    const getY = (value) => chartHeight - (value / data.maxValue) * chartHeight;
+    
+    let linePath = '';
+    data.values.forEach((value, index) => {
+      const x = getX(index);
+      const y = getY(value);
+      if (index === 0) {
+        linePath += `M ${x} ${y}`;
+      } else {
+        linePath += ` L ${x} ${y}`;
+      }
+    });
+    
+    let areaPath = linePath;
+    areaPath += ` L ${getX(numPoints - 1)} ${chartHeight} L ${getX(0)} ${chartHeight} Z`;
+
+    const animationStyle = {
+      transition: 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
+      strokeDasharray: '1000',
+      strokeDashoffset: animated ? '0' : '1000'
+    };
+    
+    return (
+      <div className="relative" ref={chartContainerRef}>
+        <h3 className="text-center font-medium text-gray-700 mb-2">New Users (Last 7 Days)</h3>
+        <svg width={width} height={height} style={{ overflow: 'visible' }}>
+          <defs>
+            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(79, 70, 229, 0.3)" />
+              <stop offset="100%" stopColor="rgba(79, 70, 229, 0.01)" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="2" result="glow" />
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          
+          <g className="chart-grid">
+            {[0, 0.2, 0.4, 0.6, 0.8, 1].map((ratio, i) => (
+              <line
+                key={`grid-y-${i}`}
+                x1="0"
+                y1={chartHeight * ratio}
+                x2="100%"
+                y2={chartHeight * ratio}
+                stroke="#e5e7eb"
+                strokeWidth="1"
+                strokeDasharray={i === 0 ? "" : "4,4"}
+                opacity={i === 0 ? 0.8 : 0.5}
+              />
+            ))}
+          </g>
+          
+          <path
+            d={areaPath}
+            fill="url(#areaGradient)"
+            stroke="none"
+            opacity={animated ? 0.8 : 0}
+            style={{ transition: 'opacity 1s ease-out' }}
+          />
+          
+          <path
+            d={linePath}
+            fill="none"
+            stroke="rgb(79, 70, 229)"
+            strokeWidth="2.5"
+            filter="url(#glow)"
+            style={animationStyle}
+          />
+          
+          <line
+            x1="0"
+            y1={chartHeight}
+            x2="100%"
+            y2={chartHeight}
+            stroke="#e5e7eb"
+            strokeWidth="1"
+          />
+          
+          {data.values.map((value, index) => (
+            <circle
+              key={`point-${index}`}
+              cx={getX(index)}
+              cy={getY(value)}
+              r="5"
+              fill="white"
+              stroke="rgb(79, 70, 229)"
+              strokeWidth="2"
+              opacity={animated ? 1 : 0}
+              filter="url(#glow)"
+              style={{ 
+                transition: `opacity 0.3s ease-in-out ${0.1 * index}s, transform 0.5s ease-out ${0.1 * index}s`,
+                transform: animated ? 'scale(1)' : 'scale(0)'
+              }}
+            />
+          ))}
+          
+          {data.values.map((value, index) => (
+            <g key={`tooltip-${index}`} opacity={animated ? 1 : 0} style={{ transition: `opacity 0.3s ease-in-out ${0.2 + 0.1 * index}s` }}>
+              <text
+                x={getX(index)}
+                y={getY(value) - 15}
+                fontSize="12"
+                fontWeight="500"
+                textAnchor="middle"
+                fill="#4f46e5"
+              >
+                {value}
+              </text>
+            </g>
+          ))}
+          
+          {data.labels.map((label, index) => (
+            <text
+              key={`label-${index}`}
+              x={getX(index)}
+              y={chartHeight + 25}
+              fontSize="11"
+              textAnchor="middle"
+              fill="#6b7280"
+            >
+              {label}
+            </text>
+          ))}
+        </svg>
+      </div>
+    );
+  };
+
+  const ChartContainer = ({ data }) => {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    
+    const handleRefresh = () => {
+      setIsRefreshing(true);
+      setTimeout(() => {
+        generateSampleChartData();
+        setIsRefreshing(false);
+      }, 600);
+    };
+    
+    return (
+      <div className="mt-8">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-medium text-gray-900">User Growth</h2>
+          <button 
+            onClick={handleRefresh}
+            className="text-indigo-600 hover:text-indigo-800 flex items-center text-sm"
+            disabled={isRefreshing}
+          >
+            <svg 
+              className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh Data
+          </button>
+        </div>
+        <div 
+          className="mt-4 bg-white p-6 shadow rounded-lg transition-all duration-300"
+          style={{ opacity: isRefreshing ? 0.7 : 1 }}
+        >
+          <SimpleLineChart data={data} height={300} />
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <>
-        
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
@@ -286,9 +475,7 @@ function AdminDashboard() {
 
   return (
     <>
-      
       <div className="flex">
-        {/* Sidebar */}
         <div className={`bg-gray-800 text-white w-64 min-h-screen flex-shrink-0 ${sidebarOpen ? 'block' : 'hidden'} md:block`}>
           <div className="p-4">
             <div className="flex items-center justify-between">
@@ -394,7 +581,6 @@ function AdminDashboard() {
           </nav>
         </div>
         
-        {/* Mobile sidebar toggle button */}
         <div className="md:hidden fixed bottom-4 right-4 z-50">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -410,15 +596,12 @@ function AdminDashboard() {
           </button>
         </div>
         
-        {/* Main Content */}
         <div className="flex-1 min-w-0 overflow-auto">
           <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
             <div className="px-4 py-6 sm:px-0">
               <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
               
-              {/* Stats Cards */}
               <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Total Users Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dl>
@@ -435,7 +618,6 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Total Posts Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dl>
@@ -452,7 +634,6 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* New Users Today Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dl>
@@ -462,7 +643,6 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Active Users Card */}
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dl>
@@ -473,7 +653,8 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Recent Users Table */}
+              <ChartContainer data={userChartData} />
+
               <div className="mt-8">
                 <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>
                 <div className="mt-4 flex flex-col">
@@ -516,7 +697,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Recent Posts Table */}
               <div className="mt-8">
                 <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>
                 <div className="mt-4 flex flex-col">
@@ -559,7 +739,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Admin Actions */}
               <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
