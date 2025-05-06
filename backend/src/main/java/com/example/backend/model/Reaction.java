@@ -10,22 +10,19 @@ public class Reaction {
     private String id;
     private String userId;
     private String postId;
-    private String reactionType; // LIKE, LOVE, HAHA, WOW, SAD, ANGRY
     private LocalDateTime createdAt;
 
     public Reaction() {
         this.createdAt = LocalDateTime.now();
     }
 
-    // Constructor with fields
-    public Reaction(String userId, String postId, String reactionType) {
+    public Reaction(String userId, String postId) {
         this.userId = userId;
         this.postId = postId;
-        this.reactionType = reactionType;
         this.createdAt = LocalDateTime.now();
     }
 
-    // Getters and setters
+    // Basic getters and setters
     public String getId() {
         return id;
     }
@@ -48,14 +45,6 @@ public class Reaction {
 
     public void setPostId(String postId) {
         this.postId = postId;
-    }
-
-    public String getReactionType() {
-        return reactionType;
-    }
-
-    public void setReactionType(String reactionType) {
-        this.reactionType = reactionType;
     }
 
     public LocalDateTime getCreatedAt() {

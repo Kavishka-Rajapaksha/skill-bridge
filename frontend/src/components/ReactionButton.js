@@ -1,259 +1,95 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
 
-const reactions = {
-  LIKE: { emoji: "👍", label: "Like" },
-  LOVE: { emoji: "❤️", label: "Love" },
-  HAHA: { emoji: "😆", label: "Haha" },
-  WOW: { emoji: "😮", label: "Wow" },
-  SAD: { emoji: "😢", label: "Sad" },
-  ANGRY: { emoji: "😠", label: "Angry" },
-};
-
 function ReactionButton({ postId, userId, onReactionChange }) {
-  const [showReactions, setShowReactions] = useState(false);
-  const [currentReaction, setCurrentReaction] = useState(null);
-  const [reactionStats, setReactionStats] = useState({
-    total: 0,
-    reactions: {},
-  });
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const requestQueue = useRef([]);
-  const processingQueue = useRef(false);
-  const abortController = useRef(null);
-  const mounted = useRef(true);
-  const timeout = useRef(null);
 
   useEffect(() => {
-    if (postId && userId) {
-      fetchReactions();
-      fetchCurrentUserReaction();
-    }
+    fetchReactionStatus();
   }, [postId, userId]);
 
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      clearTimeout(timeout.current);
-      if (abortController.current) {
-        abortController.current.abort();
-      }
-      // Clear the queue on unmount
-      requestQueue.current = [];
-      processingQueue.current = false;
-    };
-  }, []);
-
-  const enqueueRequest = (request) => {
-    if (!mounted.current) return;
-
-    // Debounce requests
-    clearTimeout(timeout.current);
-    timeout.current = setTimeout(() => {
-      requestQueue.current.push(request);
-      processQueue();
-    }, 100);
-  };
-
-  const processQueue = async () => {
-    if (
-      processingQueue.current ||
-      requestQueue.current.length === 0 ||
-      !mounted.current
-    )
-      return;
-
-    processingQueue.current = true;
-    let currentRequest;
+  const fetchReactionStatus = async () => {
+    if (!postId || !userId) return;
 
     try {
-      while (requestQueue.current.length > 0 && mounted.current) {
-        currentRequest = requestQueue.current[0];
-        try {
-          await currentRequest();
-          requestQueue.current.shift();
-          if (mounted.current && requestQueue.current.length > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-          }
-        } catch (error) {
-          if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
-            console.log("Request was canceled, clearing queue");
-            requestQueue.current = [];
-            break;
-          } else if (error.code === "ECONNABORTED") {
-            console.log("Request timed out, retrying...");
-            continue;
-          }
-          console.error("Request failed:", error);
-          requestQueue.current.shift();
-        }
-      }
-    } finally {
-      processingQueue.current = false;
-    }
-  };
-
-  const fetchWithRetry = async (
-    requestFn,
-    maxRetries = 3,
-    initialDelay = 1000
-  ) => {
-    if (!mounted.current) return;
-
-    // Cancel any existing request
-    if (abortController.current) {
-      abortController.current.abort();
-    }
-    abortController.current = new AbortController();
-
-    let delay = initialDelay;
-    let lastError;
-
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        if (!mounted.current) {
-          throw new Error("Component unmounted");
-        }
-        return await requestFn(abortController.current.signal);
-      } catch (error) {
-        lastError = error;
-        if (
-          !mounted.current ||
-          error.name === "AbortError" ||
-          error.code === "ERR_CANCELED"
-        ) {
-          console.log("Request was canceled or component unmounted");
-          throw error;
-        }
-        if (i === maxRetries - 1) break;
-        if (error.code === "ECONNABORTED" || error.code === "ERR_NETWORK") {
-          console.log(`Attempt ${i + 1} failed, retrying in ${delay}ms`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          delay *= 1.5;
-          continue;
-        }
-        throw error;
-      }
-    }
-    console.error("Max retries reached:", lastError);
-    throw lastError;
-  };
-
-  const fetchReactions = async () => {
-    try {
-      enqueueRequest(async () => {
-        const response = await fetchWithRetry((signal) =>
-          axiosInstance.get(`/api/reactions/post/${postId}`, {
-            timeout: 8000,
-            signal,
-          })
-        );
-        if (response?.data) {
-          setReactionStats(response.data);
-        }
-      });
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error fetching reactions:", error);
-        setReactionStats({ total: 0, reactions: {} });
-      }
-    }
-  };
-
-  const fetchCurrentUserReaction = async () => {
-    try {
-      enqueueRequest(async () => {
-        const response = await fetchWithRetry((signal) =>
-          axiosInstance.get(`/api/reactions/user`, {
-            params: { userId, postId },
-            timeout: 8000,
-            signal,
-          })
-        );
-        if (response?.data) {
-          setCurrentReaction(response.data.type);
-        }
-      });
-    } catch (error) {
-      if (error.name !== "AbortError" && error.response?.status !== 404) {
-        console.error("Error fetching user's reaction:", error);
-      }
-      setCurrentReaction(null);
-    }
-  };
-
-  const handleReaction = async (reaction) => {
-    if (!postId || !userId || loading) return;
-
-    try {
-      setLoading(true);
-      enqueueRequest(async () => {
-        if (currentReaction === reaction) {
-          await fetchWithRetry((signal) =>
-            axiosInstance.delete("/api/reactions", {
-              params: { userId, postId },
-              timeout: 8000,
-              signal,
-            })
-          );
-          setCurrentReaction(null);
-        } else {
-          await fetchWithRetry((signal) =>
-            axiosInstance.post("/api/reactions", null, {
-              params: { userId, postId, type: reaction },
-              timeout: 8000,
-              signal,
-            })
-          );
-          setCurrentReaction(reaction);
-        }
+      const response = await axiosInstance.get("/api/reactions/status", {
+        params: { userId, postId },
+        timeout: 5000,
       });
 
-      await fetchReactions();
-      setShowReactions(false);
-      if (onReactionChange) onReactionChange();
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error handling reaction:", error);
-        const errorMessage =
-          error.response?.data?.message || error.code === "ECONNABORTED"
-            ? "Request timed out. Please try again."
-            : "Failed to update reaction";
-        alert(errorMessage);
+      if (response?.data) {
+        setLiked(response.data.liked);
+        setLikeCount(response.data.count);
       }
+    } catch (error) {
+      console.error(
+        "Error fetching reaction status:",
+        error?.response?.data?.error || error.message
+      );
+      setLiked(false);
+      setLikeCount(0);
+    }
+  };
+
+  const handleToggleLike = async () => {
+    if (loading || !postId || !userId) return;
+    setLoading(true);
+
+    try {
+      const response = await axiosInstance.post("/api/reactions/toggle", null, {
+        params: { userId, postId },
+        timeout: 5000,
+      });
+
+      if (response?.data) {
+        setLiked(response.data.liked);
+        setLikeCount(response.data.count);
+        if (onReactionChange) onReactionChange();
+      }
+    } catch (error) {
+      console.error(
+        "Error toggling reaction:",
+        error?.response?.data?.error || error.message
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative">
-      <button
-        className="flex items-center space-x-1 hover:bg-gray-100 px-3 py-1 rounded-md"
-        onClick={() => setShowReactions(!showReactions)}
-      >
-        <span>{currentReaction && reactions[currentReaction].emoji}</span>
-        <span className="text-sm text-gray-500">
-          {reactionStats.total > 0 && `${reactionStats.total}`}
-        </span>
-      </button>
-
-      {showReactions && (
-        <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-lg border p-2 flex space-x-2">
-          {Object.entries(reactions).map(([key, { emoji, label }]) => (
-            <button
-              key={key}
-              className="hover:scale-125 transform transition-transform p-1"
-              onClick={() => handleReaction(key)}
-              title={label}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+    <button
+      onClick={handleToggleLike}
+      disabled={loading}
+      className={`flex items-center space-x-2 px-3 py-1.5 rounded-md transition-all duration-200 
+        ${
+          liked
+            ? "text-blue-600 hover:bg-blue-50"
+            : "text-gray-600 hover:bg-gray-100"
+        }
+        ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+    >
+      <span className="flex items-center space-x-1">
+        <svg
+          className={`w-5 h-5 ${
+            liked ? "fill-current" : "stroke-current fill-none"
+          }`}
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-6.5"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span>{liked ? "Liked" : "Like"}</span>
+      </span>
+      {likeCount > 0 && (
+        <span className="text-sm text-gray-500">{likeCount}</span>
       )}
-    </div>
+    </button>
   );
 }
 
