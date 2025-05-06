@@ -406,13 +406,71 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       {/* Post Engagement Section */}
       <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
         <div className="flex items-center justify-between">
-          <ReactionButton
-            postId={post.id}
-            userId={user.id}
-            onReactionChange={() => {
-              // Optionally refresh post data or handle reaction changes
-            }}
-          />
+          {/* Enhanced Like Button with Animation */}
+          <div className="relative">
+            <ReactionButton
+              postId={post.id}
+              userId={user.id}
+              onReactionChange={() => {
+                // Optionally refresh post data or handle reaction changes
+              }}
+              renderButton={({ liked, count, onClick, loading }) => (
+                <button 
+                  onClick={onClick}
+                  disabled={loading}
+                  className={`group flex items-center space-x-2 px-4 py-2 rounded-full transition-all duration-300 ${
+                    liked 
+                      ? 'bg-red-50 text-red-500 hover:bg-red-100' 
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="relative">
+                    <svg 
+                      className={`w-6 h-6 transition-transform duration-300 ${
+                        liked ? 'text-red-500 scale-110' : 'text-gray-400 group-hover:text-gray-500'
+                      }`}
+                      fill={liked ? "currentColor" : "none"} 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={liked ? "0" : "2"} 
+                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                      />
+                    </svg>
+                    
+                    {/* Heart Animation on Click */}
+                    {liked && (
+                      <span className="heart-animation absolute inset-0 flex items-center justify-center">
+                        <svg 
+                          className="w-6 h-6 text-red-500 absolute animate-ping opacity-75" 
+                          fill="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                          />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
+                  
+                  <span className={`font-medium ${liked ? 'text-red-500' : 'text-gray-700'} transition-colors duration-300`}>
+                    {loading ? (
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      count > 0 ? `${count} ${count === 1 ? 'Like' : 'Likes'}` : 'Like'
+                    )}
+                  </span>
+                </button>
+              )}
+            />
+          </div>
 
           <div className="flex items-center space-x-4">
             <button
