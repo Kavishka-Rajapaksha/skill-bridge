@@ -17,15 +17,15 @@ function CreatePost({ onPostCreated }) {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
       // Validate images
-      const validImages = files.every(file => file.type.startsWith('image/'));
+      const validImages = files.every((file) => file.type.startsWith("image/"));
       if (!validImages) {
         setError("Please upload only image files");
         return;
       }
-      
+
       setImages(files);
       // Create and store preview URLs
-      const urls = files.map(file => URL.createObjectURL(file));
+      const urls = files.map((file) => URL.createObjectURL(file));
       setPreviewUrls(urls);
       setError("");
       // Clear video if any
@@ -111,7 +111,10 @@ function CreatePost({ onPostCreated }) {
         images.forEach((image) => formData.append("images", image));
       }
 
-      const response = await axiosInstance.uploadMedia("/api/posts", formData, {
+      const response = await axiosInstance.post("/api/posts", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / progressEvent.total
@@ -121,7 +124,7 @@ function CreatePost({ onPostCreated }) {
       });
 
       // Clean up preview URLs before resetting state
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
       if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
 
       // Reset form
@@ -141,14 +144,23 @@ function CreatePost({ onPostCreated }) {
     } catch (error) {
       console.error("Error creating post:", error);
       if (error.code === "ECONNABORTED") {
-        setError("Upload timed out. Please try again with a smaller file or check your connection.");
+        setError(
+          "Upload timed out. Please try again with a smaller file or check your connection."
+        );
       } else if (error.response?.status === 403) {
         setError("Not authorized. Please log in again.");
-        localStorage.removeItem("user");  
+        localStorage.removeItem("user");
         navigate("/login");
       } else {
-        const errorMessage = error.response?.data?.message || error.response?.data || "Failed to create post. Please try again.";
-        setError(typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage);
+        const errorMessage =
+          error.response?.data?.message ||
+          error.response?.data ||
+          "Failed to create post. Please try again.";
+        setError(
+          typeof errorMessage === "object"
+            ? JSON.stringify(errorMessage)
+            : errorMessage
+        );
       }
     } finally {
       setIsLoading(false);

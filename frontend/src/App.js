@@ -14,6 +14,11 @@ import AdminAddUser from "./pages/AdminAddUser";
 import AdminBlockedUsers from "./pages/AdminBlockedUsers";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Groups from "./pages/Groups";
+import GroupDetail from "./pages/GroupDetail";
+import Header from "./components/Header"; // Import the Header component
+import GroupManagement from "./components/GroupManagement"; // Import GroupManagement component
+// import CreatePost from "./pages/CreatePost"; // Remove or comment out the problematic import line
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -30,13 +35,25 @@ function App() {
     return children;
   };
 
+  // Create a user route that doesn't immediately redirect
+  const UserAwareRoute = ({ children }) => {
+    // This doesn't force a redirect - component will handle display accordingly
+    return children;
+  };
+
   return (
     <AuthProvider>
       <Router>
+        {/* Include Header only once here */}
+        <Header />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/groups" element={<UserAwareRoute><GroupManagement /></UserAwareRoute>} />
+          <Route path="/groups/:id" element={<GroupDetail />} />
+          {/* Remove or comment out the CreatePost route */}
+          {/* <Route path="/create-post" element={<CreatePost />} /> */}
 
           {/* Admin Routes */}
           <Route

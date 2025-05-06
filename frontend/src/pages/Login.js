@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { 
   Box, 
   Button, 
@@ -17,16 +17,17 @@ import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { AuthContext } from "../context/AuthContext"; // Add this import
 
 function Login() {
   const navigate = useNavigate();
+  const { setAuth } = useContext(AuthContext); // Add this line
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  // Add a loading state
   const [loading, setLoading] = useState(false);
 
   const handleGoogleCallback = useCallback(async (response) => {
@@ -43,6 +44,7 @@ function Login() {
       });
       
       localStorage.setItem("user", JSON.stringify(result.data));
+      setAuth({ isAuthenticated: true, user: result.data }); // Update auth context
       navigate("/");
     } catch (err) {
       console.error("Google auth error:", err);
@@ -51,7 +53,7 @@ function Login() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, setAuth]); // Add setAuth to dependency array
 
   useEffect(() => {
     // Clean up any existing Google script to prevent conflicts
@@ -134,6 +136,7 @@ function Login() {
     try {
       const response = await axiosInstance.post("/api/auth/login", formData);
       localStorage.setItem("user", JSON.stringify(response.data));
+      setAuth({ isAuthenticated: true, user: response.data }); // Update auth context
       navigate("/");
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.response?.data || "An error occurred";
