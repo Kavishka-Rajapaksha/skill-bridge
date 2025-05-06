@@ -43,7 +43,7 @@ public class GroupService {
 
         // Verify ownership
         if (!group.getCreatedBy().equals(userId)) {
-            throw new IllegalArgumentException("You can only update your own groups");
+            throw new IllegalArgumentException("You don't have permission to update this group");
         }
 
         // Check if new name already exists (skip if name hasn't changed)
@@ -53,7 +53,6 @@ public class GroupService {
 
         group.setName(name);
         group.setDescription(description);
-
         return groupRepository.save(group);
     }
 
@@ -63,7 +62,7 @@ public class GroupService {
 
         // Verify ownership
         if (!group.getCreatedBy().equals(userId)) {
-            throw new IllegalArgumentException("You can only delete your own groups");
+            throw new IllegalArgumentException("You don't have permission to delete this group");
         }
 
         groupRepository.delete(group);

@@ -12,6 +12,8 @@ function GroupCard({ group, onUpdate, onDelete }) {
   );
   const [loading, setLoading] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
+  const [currentUser] = useState(JSON.parse(localStorage.getItem("user")));
+  const isOwner = currentUser?.id === group.createdBy;
 
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -104,51 +106,53 @@ function GroupCard({ group, onUpdate, onDelete }) {
         </div>
       </Link>
 
-      {/* Action Buttons at Bottom */}
-      <div className="px-4 py-3 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
-        <button
-          onClick={() => setIsEditing(true)}
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors duration-200"
-          title="Edit group"
-          disabled={loading}
-        >
-          <svg
-            className="w-4 h-4 mr-2"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      {/* Action Buttons at Bottom - Only show for group owner */}
+      {isOwner && (
+        <div className="px-4 py-3 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors duration-200"
+            title="Edit group"
+            disabled={loading}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-            />
-          </svg>
-          Edit
-        </button>
-        <button
-          onClick={handleDelete}
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors duration-200"
-          title="Delete group"
-          disabled={loading}
-        >
-          <svg
-            className="w-4 h-4 mr-2"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+              />
+            </svg>
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors duration-200"
+            title="Delete group"
+            disabled={loading}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-            />
-          </svg>
-          {loading ? "Deleting..." : "Delete"}
-        </button>
-      </div>
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {isEditing && (
