@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const postController = require('../controllers/postController');
+const postController = require('../main/java/com/example/backend/controller/postController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
 // Create a new post (protected route)

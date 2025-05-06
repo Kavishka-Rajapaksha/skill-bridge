@@ -529,6 +529,16 @@ function AdminDashboard() {
               </Link>
               
               <Link 
+                to="/" 
+                className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create New Post
+              </Link>
+              
+              <Link 
                 to="/admin/comments" 
                 className="flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
               >
@@ -652,6 +662,162 @@ function AdminDashboard() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Recent Data Refresh Button */}
+            <div className="mt-8 flex justify-end">
+              <button
+                onClick={() => {
+                  setDataCache(null); // Clear cache to force refresh
+                  fetchDashboardData();
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+              >
+                <svg className="mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Recent Data
+              </button>
+            </div>
+            
+            {/* Recent Users Section with Empty State */}
+            <div className="mt-8">
+              <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>
+              <div className="mt-4 flex flex-col">
+                <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                  <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+                    <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                      {recentUsers && recentUsers.length > 0 ? (
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {recentUsers.map((user) => (
+                              <tr key={user.id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-500">{user.email}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(user.createdAt).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  <Link to={`/admin/users/${user.id}`} className="text-indigo-600 hover:text-indigo-900 mr-4">
+                                    View
+                                  </Link>
+                                  <Link to={`/admin/users/edit/${user.id}`} className="text-indigo-600 hover:text-indigo-900">
+                                    Edit
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="bg-white px-4 py-8 text-center">
+                          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No recent users</h3>
+                          <p className="mt-1 text-sm text-gray-500">
+                            No new users have registered recently.
+                          </p>
+                          <div className="mt-6">
+                            <Link to="/admin/users" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                              View All Users
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {recentUsers && recentUsers.length > 0 && (
+                <div className="mt-4 text-right">
+                  <Link to="/admin/users" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                    View all users <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              )}
+            </div>
+            
+            {/* Recent Posts Section with Empty State */}
+            <div className="mt-8">
+              <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>
+              <div className="mt-4 flex flex-col">
+                <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                  <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+                    <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                      {recentPosts && recentPosts.length > 0 ? (
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {recentPosts.map((post) => (
+                              <tr key={post.id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{post.title}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-500">{post.username}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(post.createdAt).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  <Link to={`/admin/posts/${post.id}`} className="text-indigo-600 hover:text-indigo-900 mr-4">
+                                    View
+                                  </Link>
+                                  <Link to={`/admin/posts/edit/${post.id}`} className="text-indigo-600 hover:text-indigo-900">
+                                    Edit
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="bg-white px-4 py-8 text-center">
+                          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No recent posts</h3>
+                          <p className="mt-1 text-sm text-gray-500">
+                            No new posts have been created recently.
+                          </p>
+                          <div className="mt-6">
+                            <Link to="/admin/posts" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                              View All Posts
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {recentPosts && recentPosts.length > 0 && (
+                <div className="mt-4 text-right">
+                  <Link to="/admin/posts" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                    View all posts <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

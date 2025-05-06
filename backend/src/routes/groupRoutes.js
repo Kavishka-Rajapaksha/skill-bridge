@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const groupController = require('../controllers/groupController');
+const groupController = require('../main/java/com/example/backend/controller/groupController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
 // Create a new group (protected route)
