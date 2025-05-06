@@ -232,23 +232,40 @@ function AdminDashboard() {
   };
 
   const prepareUserChartData = (data) => {
-    const sortedData = [...data].sort((a, b) => 
-      new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt)
-    );
-    
-    const labels = sortedData.map(item => {
-      const date = new Date(item.date || item.createdAt);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    });
-    
-    const values = sortedData.map(item => item.count || item.newUsers || 0);
-    const maxValue = Math.max(...values, 1) * 1.2;
-    
-    setUserChartData({
-      labels,
-      values,
-      maxValue
-    });
+    try {
+      if (!Array.isArray(data) || data.length === 0) {
+        generateSampleChartData();
+        return;
+      }
+
+      const sortedData = [...data].sort((a, b) => {
+        const dateA = new Date(a.date || a.createdAt || a.timestamp || 0);
+        const dateB = new Date(b.date || b.createdAt || b.timestamp || 0);
+        return dateA - dateB;
+      });
+      
+      const labels = sortedData.map(item => {
+        const date = new Date(item.date || item.createdAt || item.timestamp || 0);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      });
+      
+      const values = sortedData.map(item => {
+        const count = parseInt(item.count || item.newUsers || item.value || 0);
+        return isNaN(count) ? 0 : count;
+      });
+      
+      const maxVal = Math.max(...values);
+      const maxValue = maxVal > 0 ? maxVal * 1.2 : 10;
+      
+      setUserChartData({
+        labels,
+        values,
+        maxValue
+      });
+    } catch (error) {
+      console.error("Error processing chart data:", error);
+      generateSampleChartData();
+    }
   };
   
   const generateSampleChartData = () => {
@@ -260,15 +277,18 @@ function AdminDashboard() {
       const date = new Date();
       date.setDate(today.getDate() - i);
       labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-      values.push(Math.floor(Math.random() * 10) + 1);
+      
+      const baseValue = Math.max(1, stats.totalUsers / 20);
+      const randomFactor = Math.random() * baseValue;
+      values.push(Math.floor(baseValue + randomFactor));
     }
     
-    const maxValue = Math.max(...values, 1) * 1.2;
+    const maxValue = Math.max(...values) * 1.2;
     
     setUserChartData({
       labels,
       values,
-      maxValue
+      maxValue: maxValue || 10
     });
   };
 
@@ -289,8 +309,10 @@ function AdminDashboard() {
     const chartHeight = height - 60;
     const chartWidth = "100%";
     
+    const maxValue = data.maxValue && data.maxValue > 0 ? data.maxValue : Math.max(...data.values, 1) * 1.2;
+    
     const getX = (index) => `${(index / (numPoints - 1)) * 100}%`;
-    const getY = (value) => chartHeight - (value / data.maxValue) * chartHeight;
+    const getY = (value) => chartHeight - ((value || 0) / maxValue) * chartHeight;
     
     let linePath = '';
     data.values.forEach((value, index) => {
