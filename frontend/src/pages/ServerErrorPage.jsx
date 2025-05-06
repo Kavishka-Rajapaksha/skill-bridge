@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import ServerErrorAlert from '../components/common/ServerErrorAlert';
+import ServerErrorAlert from '../../../src/components/common/ServerErrorAlert';
 import { isServerRunning } from '../utils/serverStatus';
 
 const ServerErrorPage = () => {

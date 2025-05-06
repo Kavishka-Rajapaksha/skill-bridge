@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import api from '../services/api';
-import ConnectionErrorModal from '../components/common/ConnectionErrorModal';
+import api from '../../../src/services/api';
+import ConnectionErrorModal from '../../../src/components/common/ConnectionErrorModal';
 
 function GroupPage() {
   const [groups, setGroups] = useState([]);
