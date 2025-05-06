@@ -1,9 +1,25 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Link } from "react-router-dom";
 import { AuthContext } from '../context/AuthContext';
 
 function Header() {
   const { isAuthenticated, user } = useContext(AuthContext);
+  const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowGroupsDropdown(false);
+      }
+    }
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
     <header className="bg-white shadow-md py-4">
@@ -16,12 +32,46 @@ function Header() {
           
           {/* Groups link for authenticated users */}
           {isAuthenticated && (
-            <Link to="/groups" className="hover:text-blue-600 transition-colors flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              Groups
-            </Link>
+            <div className="relative" ref={dropdownRef}>
+              <button 
+                onClick={() => setShowGroupsDropdown(!showGroupsDropdown)}
+                className="hover:text-blue-600 transition-colors flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Groups
+              </button>
+              
+              {/* Groups Dropdown Menu */}
+              {showGroupsDropdown && (
+                <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                  <div className="py-1">
+                    <Link 
+                      to="/groups" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowGroupsDropdown(false)}
+                    >
+                      All Groups
+                    </Link>
+                    <Link 
+                      to="/groups/my-groups" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowGroupsDropdown(false)}
+                    >
+                      My Groups
+                    </Link>
+                    <Link 
+                      to="/groups/create" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowGroupsDropdown(false)}
+                    >
+                      Create Group
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           
           {/* Admin Dashboard link */}
