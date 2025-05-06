@@ -47,9 +47,10 @@ public class CommentController {
     @DeleteMapping("/{commentId}")
     public ResponseEntity<?> deleteComment(
             @PathVariable String commentId,
-            @RequestParam String userId) {
+            @RequestParam String userId,
+            @RequestParam(required = false, defaultValue = "false") boolean isAdmin) {
         try {
-            commentService.deleteComment(commentId, userId);
+            commentService.deleteComment(commentId, userId, isAdmin);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

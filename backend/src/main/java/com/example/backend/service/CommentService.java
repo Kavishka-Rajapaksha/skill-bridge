@@ -83,9 +83,22 @@ public class CommentService {
         return convertToCommentResponse(updatedComment);
     }
 
-    public void deleteComment(String commentId, String userId) {
+    public void deleteComment(String commentId, String userId, boolean isAdmin) {
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new IllegalArgumentException("Comment not found"));
+
+        // If user is admin, allow deletion regardless of ownership
+        if (isAdmin) {
+            // Remove comment ID from post's comments list if post still exists
+            postRepository.findById(comment.getPostId()).ifPresent(post -> {
+                post.getComments().remove(commentId);
+                postRepository.save(post);
+            });
+
+            // Delete the comment
+            commentRepository.deleteById(commentId);
+            return;
+        }
 
         Post post = postRepository.findById(comment.getPostId())
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
@@ -101,6 +114,11 @@ public class CommentService {
 
         // Delete the comment
         commentRepository.deleteById(commentId);
+    }
+
+    // Keep the original method for backward compatibility
+    public void deleteComment(String commentId, String userId) {
+        deleteComment(commentId, userId, false);
     }
 
     public List<CommentResponse> getPostComments(String postId) {

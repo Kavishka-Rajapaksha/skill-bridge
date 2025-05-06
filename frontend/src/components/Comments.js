@@ -7,7 +7,9 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
   const [editingComment, setEditingComment] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchingComments, setFetchingComments] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
   const user = JSON.parse(localStorage.getItem("user"));
+  const isAdmin = user?.role === "ROLE_ADMIN";
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -88,13 +90,17 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
     }
   };
 
-  const handleDelete = async (commentId) => {
+  const handleDelete = async (commentId, isAdminDelete = false) => {
     if (!window.confirm("Are you sure you want to delete this comment?"))
       return;
 
     try {
+      setDeletingCommentId(commentId);
       await axiosInstance.delete(`/api/comments/${commentId}`, {
-        params: { userId: user.id },
+        params: { 
+          userId: user.id,
+          isAdmin: isAdminDelete 
+        },
       });
       const updatedComments = comments.filter((c) => c.id !== commentId);
       setComments(updatedComments);
@@ -102,6 +108,8 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
     } catch (error) {
       console.error("Error deleting comment:", error);
       alert("Failed to delete comment");
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -222,33 +230,38 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
                       </div>
                     </div>
 
-                    {(user.id === comment.userId ||
-                      user.id === postOwnerId) && (
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {user.id === comment.userId && (
-                          <button
-                            onClick={() => setEditingComment(comment.id)}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200 transform hover:scale-110"
-                            title="Edit comment"
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* User can edit their own comments */}
+                      {user.id === comment.userId && (
+                        <button
+                          onClick={() => setEditingComment(comment.id)}
+                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200 transform hover:scale-110"
+                          title="Edit comment"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                              />
-                            </svg>
-                          </button>
-                        )}
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                            />
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* User can delete their own comments */}
+                      {user.id === comment.userId && (
                         <button
                           onClick={() => handleDelete(comment.id)}
-                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200 transform hover:scale-110"
+                          disabled={deletingCommentId === comment.id}
+                          className={`p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200 transform hover:scale-110 ${
+                            deletingCommentId === comment.id ? "animate-pulse" : ""
+                          }`}
                           title="Delete comment"
                         >
                           <svg
@@ -265,8 +278,63 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
                             />
                           </svg>
                         </button>
-                      </div>
-                    )}
+                      )}
+
+                      {/* Post owner can delete any comment on their post */}
+                      {user.id === postOwnerId && user.id !== comment.userId && (
+                        <button
+                          onClick={() => handleDelete(comment.id)}
+                          disabled={deletingCommentId === comment.id}
+                          className={`p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200 transform hover:scale-110 ${
+                            deletingCommentId === comment.id ? "animate-pulse" : ""
+                          }`}
+                          title="Delete comment as post owner"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                      
+                      {/* Admin can delete any comment */}
+                      {isAdmin && user.id !== comment.userId && user.id !== postOwnerId && (
+                        <button
+                          onClick={() => handleDelete(comment.id, true)}
+                          disabled={deletingCommentId === comment.id}
+                          className={`p-1.5 relative group/admin hover:bg-red-50 rounded-full transition-all duration-200 transform hover:scale-110 ${
+                            deletingCommentId === comment.id ? "animate-pulse" : ""
+                          }`}
+                          title="Delete as Admin"
+                        >
+                          <svg
+                            className="w-4 h-4 text-gray-500 group-hover/admin:text-red-600 transition-colors duration-200"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-1 opacity-0 group-hover/admin:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                            Admin Delete
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
