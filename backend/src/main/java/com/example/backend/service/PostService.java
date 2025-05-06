@@ -204,11 +204,12 @@ public class PostService {
                 .collect(Collectors.toList());
     }
 
-    public void deletePost(String postId, String userId) {
+    public void deletePost(String postId, String userId, boolean isAdmin) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
 
-        if (!post.getUserId().equals(userId)) {
+        // Allow post deletion if user is the post owner OR is an admin
+        if (!post.getUserId().equals(userId) && !isAdmin) {
             throw new IllegalArgumentException("You can only delete your own posts");
         }
 
@@ -226,11 +227,13 @@ public class PostService {
                         System.out.println("Deleted file: " + mediaPath);
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to delete media: " + mediaId + " - " + e.getMessage());
+                    // Log error but continue with post deletion
+                    System.err.println("Error deleting media: " + e.getMessage());
                 }
             }
         }
 
+        // Delete post from database
         postRepository.deleteById(postId);
     }
 

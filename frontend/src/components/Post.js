@@ -16,23 +16,27 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [showComments, setShowComments] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
+  const [isUserAdmin, setIsUserAdmin] = useState(false);
   const user = JSON.parse(localStorage.getItem("user"));
+
+  useEffect(() => {
+    if (user && user.role === "ROLE_ADMIN") {
+      setIsUserAdmin(true);
+    }
+  }, [user]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
   };
 
-  // Construct full URL for relative paths
   const getFullUrl = (url) => {
     if (!url) return "";
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
     return `${window.location.protocol}//${window.location.hostname}:8081${url}`;
   };
 
-  // Fetch media as a blob and create object URL
   const getMediaUrl = async (mediaId, originalUrl) => {
     try {
-      // Check if media type is known
       const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
 
       const response = await axiosInstance.get(`/api/media/${mediaId}`, {
@@ -40,10 +44,8 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       });
 
       if (response.data && response.data.url) {
-        // New format where response.data contains { url, type, size }
         return response.data.url;
       } else if (response.data instanceof Blob && response.data.size > 0) {
-        // Fallback for direct blob responses
         return URL.createObjectURL(response.data);
       }
 
@@ -58,12 +60,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     }
   };
 
-  // Load all media URLs
   useEffect(() => {
     const loadMedia = async () => {
       const newMediaUrls = {};
 
-      // Handle video
       if (post.videoUrl) {
         const mediaId = post.videoUrl.split("/").pop();
         try {
@@ -73,7 +73,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         }
       }
 
-      // Handle images
       if (post.imageUrls?.length) {
         for (const url of post.imageUrls) {
           const mediaId = url.split("/").pop();
@@ -91,7 +90,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
     loadMedia();
 
-    // Cleanup object URLs
     return () => {
       Object.values(mediaUrls).forEach((url) => {
         if (url && typeof url === "string" && url.startsWith("blob:")) {
@@ -106,7 +104,12 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
     try {
       setDeleting(true);
-      await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}`);
+      // Add isAdmin flag when admin is deleting someone else's post
+      if (isUserAdmin && user.id !== post.userId) {
+        await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}&isAdmin=true`);
+      } else {
+        await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}`);
+      }
       onPostDeleted?.(post.id);
       setShowMenu(false);
     } catch (error) {
@@ -154,7 +157,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       onPostUpdated?.(response.data);
       setIsEditing(false);
 
-      // Clean up preview URLs
       editPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     } catch (error) {
       console.error("Error updating post:", error);
@@ -166,7 +168,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
   const handleCommentClick = () => {
     setShowComments(!showComments);
-    // Show comment input only when opening comments for the first time
     if (!showComments) {
       setShowCommentInput(true);
     }
@@ -178,7 +179,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
   return (
     <div className="bg-white rounded-lg shadow-md mb-4 p-4 relative">
-      {user && user.id === post.userId && (
+      {user && (user.id === post.userId || isUserAdmin) && (
         <div className="absolute top-4 right-4">
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -201,12 +202,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
           </button>
           {showMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50">
-              <button
-                onClick={handleEdit}
-                className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100"
-              >
-                Edit Post
-              </button>
+              {user.id === post.userId && (
+                <button
+                  onClick={handleEdit}
+                  className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100"
+                >
+                  Edit Post
+                </button>
+              )}
               <button
                 onClick={handleDelete}
                 disabled={deleting}
@@ -214,7 +217,11 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                   deleting ? "text-gray-400" : "text-red-600 hover:bg-gray-100"
                 }`}
               >
-                {deleting ? "Deleting..." : "Delete Post"}
+                {deleting
+                  ? "Deleting..."
+                  : isUserAdmin && user.id !== post.userId
+                  ? "Delete as Admin"
+                  : "Delete Post"}
               </button>
             </div>
           )}

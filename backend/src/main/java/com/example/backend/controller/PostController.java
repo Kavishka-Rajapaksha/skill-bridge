@@ -99,11 +99,14 @@ public class PostController {
     @DeleteMapping("/posts/{postId}")
     public ResponseEntity<?> deletePost(
             @PathVariable String postId,
-            @RequestParam String userId) {
+            @RequestParam String userId,
+            @RequestParam(required = false, defaultValue = "false") boolean isAdmin) {
         try {
-            postService.deletePost(postId, userId);
+            logger.info("Deleting post: " + postId + ", user: " + userId + ", isAdmin: " + isAdmin);
+            postService.deletePost(postId, userId, isAdmin);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
+            logger.warning("Error deleting post: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
