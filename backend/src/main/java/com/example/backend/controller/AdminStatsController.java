@@ -13,7 +13,6 @@ import com.example.backend.dto.StatsResponse;
 
 import java.util.Map;
 import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/admin/stats")
@@ -42,26 +41,5 @@ public class AdminStatsController {
         Map<String, Object> response = new HashMap<>();
         response.put("count", todayPostsCount);
         return ResponseEntity.ok(response);
-    }
-    
-    // New endpoint to get all dashboard stats in a single request
-    @GetMapping("/dashboard")
-    public ResponseEntity<?> getDashboardStats() {
-        Map<String, Object> dashboardStats = new HashMap<>();
-        
-        try {
-            // Gather all stats at once
-            StatsResponse userStats = adminStatsService.getUserStats();
-            StatsResponse postStats = adminStatsService.getPostStats();
-            int todayPostsCount = adminStatsService.getTodayPostsCount();
-            
-            dashboardStats.put("users", userStats);
-            dashboardStats.put("posts", postStats);
-            dashboardStats.put("todayPosts", Map.of("count", todayPostsCount));
-            
-            return ResponseEntity.ok(dashboardStats);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch dashboard stats"));
-        }
     }
 }
