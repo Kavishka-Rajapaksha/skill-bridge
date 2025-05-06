@@ -2,7 +2,9 @@ package com.example.backend.model;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PostResponse {
     private String id;
@@ -13,6 +15,7 @@ public class PostResponse {
     private String videoUrl;
     private List<String> imageUrls = new ArrayList<>();
     private List<String> mediaIds = new ArrayList<>();
+    private Map<String, String> mediaTypes = new HashMap<>();
     private int likes;
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt;
@@ -27,6 +30,7 @@ public class PostResponse {
         this.videoUrl = post.getVideoUrl();
         this.imageUrls = post.getImageUrls();
         this.mediaIds = post.getMediaIds();
+        this.mediaTypes = post.getMediaTypes();
         this.likes = post.getLikes();
         this.comments = post.getComments();
         this.createdAt = post.getCreatedAt();
@@ -95,6 +99,14 @@ public class PostResponse {
 
     public void setMediaIds(List<String> mediaIds) {
         this.mediaIds = mediaIds;
+    }
+
+    public Map<String, String> getMediaTypes() {
+        return mediaTypes;
+    }
+
+    public void setMediaTypes(Map<String, String> mediaTypes) {
+        this.mediaTypes = mediaTypes;
     }
 
     public int getLikes() {

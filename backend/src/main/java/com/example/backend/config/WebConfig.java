@@ -44,7 +44,12 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins("http://localhost:3000", "http://localhost:3001", "http://localhost:3002")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD")
-                .allowedHeaders("*")
+                .allowedHeaders("*")  // This is another approach - allow all headers
+                // Alternatively, you can explicitly list all headers including "userId"
+                //.allowedHeaders("Authorization", "Content-Type", "Accept", "Origin", 
+                //                "X-Requested-With", "Access-Control-Request-Method", 
+                //                "Access-Control-Request-Headers", "Cache-Control", 
+                //                "Pragma", "userId")
                 .exposedHeaders(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
                         HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES,
                         HttpHeaders.CONTENT_TYPE)
