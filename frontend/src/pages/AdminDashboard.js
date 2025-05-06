@@ -276,7 +276,7 @@ function AdminDashboard() {
   if (loading) {
     return (
       <>
-        <Header user={user} />
+        
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
@@ -286,7 +286,7 @@ function AdminDashboard() {
 
   return (
     <>
-      <Header user={user} />
+      
       <div className="flex">
         {/* Sidebar */}
         <div className={`bg-gray-800 text-white w-64 min-h-screen flex-shrink-0 ${sidebarOpen ? 'block' : 'hidden'} md:block`}>
