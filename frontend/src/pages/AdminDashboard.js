@@ -1,6 +1,56 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axiosInstance from "../utils/axios";
+
+// Memoized Table Row components to prevent re-renders
+const UserTableRow = React.memo(({ user }) => (
+  <tr key={user.id}>
+    <td className="px-6 py-4 whitespace-nowrap">
+      <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
+    </td>
+    <td className="px-6 py-4 whitespace-nowrap">
+      <div className="text-sm text-gray-500">{user.email}</div>
+    </td>
+    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      {new Date(user.createdAt).toLocaleDateString()}
+    </td>
+  </tr>
+));
+
+const PostTableRow = React.memo(({ post }) => (
+  <tr key={post.id}>
+    <td className="px-6 py-4 whitespace-nowrap">
+      <div className="text-sm font-medium text-gray-900">{post.title}</div>
+    </td>
+    <td className="px-6 py-4 whitespace-nowrap">
+      <div className="text-sm text-gray-500">{post.username}</div>
+    </td>
+    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      {new Date(post.createdAt).toLocaleDateString()}
+    </td>
+  </tr>
+));
+
+// Stat Card component
+const StatCard = React.memo(({ title, value, link, linkText }) => (
+  <div className="bg-white overflow-hidden shadow rounded-lg">
+    <div className="px-4 py-5 sm:p-6">
+      <dl>
+        <dt className="text-sm font-medium text-gray-500 truncate">{title}</dt>
+        <dd className="mt-1 text-3xl font-semibold text-gray-900">{value}</dd>
+      </dl>
+    </div>
+    {link && linkText && (
+      <div className="bg-gray-50 px-4 py-3">
+        <div className="text-sm">
+          <Link to={link} className="font-medium text-indigo-600 hover:text-indigo-500">
+            {linkText}
+          </Link>
+        </div>
+      </div>
+    )}
+  </div>
+));
 
 function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -14,35 +64,35 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Add cache state to prevent redundant API calls
+  const [lastFetchTime, setLastFetchTime] = useState(0);
+  const [dataCache, setDataCache] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const checkAdminAccess = async () => {
-      try {
-        const userData = localStorage.getItem("user");
-        if (!userData) {
-          navigate("/login");
-          return;
-        }
+  // Time threshold for cache validity (5 minutes in milliseconds)
+  const CACHE_VALIDITY = 5 * 60 * 1000;
 
-        const user = JSON.parse(userData);
-        if (user.role !== "ROLE_ADMIN") {
-          navigate("/");
-          return;
-        }
-        
-        setUser(user);
-        await fetchDashboardData();
-      } catch (error) {
-        console.error("Error checking admin access:", error);
-        navigate("/");
-      }
-    };
+  // Cache helper function
+  const shouldUseCache = useCallback(() => {
+    const currentTime = Date.now();
+    return dataCache && (currentTime - lastFetchTime < CACHE_VALIDITY);
+  }, [dataCache, lastFetchTime]);
 
-    checkAdminAccess();
-  }, [navigate]);
+  // Optimized fetchDashboardData using memoization
+  const fetchDashboardData = useCallback(async () => {
+    // Use cached data if available and valid
+    if (shouldUseCache()) {
+      console.log("Using cached dashboard data");
+      setStats(dataCache.stats);
+      setRecentUsers(dataCache.recentUsers);
+      setRecentPosts(dataCache.recentPosts);
+      setLoading(false);
+      return;
+    }
 
-  const fetchDashboardData = async () => {
+    console.log("Fetching fresh dashboard data");
+    setLoading(true);
+
     try {
       // Make separate API calls to handle potential failures individually
       let userStats = { total: 0, newToday: 0, active: 0 };
@@ -50,38 +100,41 @@ function AdminDashboard() {
       let recentUsersData = [];
       let recentPostsData = [];
       
+      // Use Promise.allSettled to batch API calls where possible
+      const [usersPromise, postsPromise, recentUsersPromise, recentPostsPromise] = await Promise.allSettled([
+        axiosInstance.get("/api/admin/stats/users").catch(() => null),
+        axiosInstance.get("/api/admin/stats/posts").catch(() => null),
+        axiosInstance.get("/api/admin/users/recent").catch(() => null),
+        axiosInstance.get("/api/admin/posts/recent").catch(() => null)
+      ]);
+
+      // Process user stats
       try {
-        // Try the stats endpoint first
-        try {
-          const usersRes = await axiosInstance.get("/api/admin/stats/users");
+        if (usersPromise.status === 'fulfilled' && usersPromise.value) {
+          const usersRes = usersPromise.value;
           console.log("User stats API response:", usersRes.data);
           
           if (typeof usersRes.data === 'object') {
-            // Extract total users from response object
             if (usersRes.data.total !== undefined) {
               userStats.total = usersRes.data.total;
             } else if (usersRes.data.count !== undefined) {
               userStats.total = usersRes.data.count;
             }
-            // Handle other possible response structures as needed
           }
-        } catch (statsError) {
-          console.error("Stats endpoint failed, trying direct users endpoint:", statsError);
+        } else {
+          console.error("Stats endpoint failed, trying direct users endpoint");
           
           // If stats endpoint fails, try to get all users and count them
           try {
             const allUsersRes = await axiosInstance.get("/api/admin/users");
-            console.log("All users API response:", allUsersRes.data);
             
             if (Array.isArray(allUsersRes.data)) {
               userStats.total = allUsersRes.data.length;
-              console.log("Set user count from array length:", userStats.total);
             } else if (typeof allUsersRes.data === 'object' && allUsersRes.data.users && Array.isArray(allUsersRes.data.users)) {
               userStats.total = allUsersRes.data.users.length;
-              console.log("Set user count from users array property:", userStats.total);
             }
           } catch (usersError) {
-            console.error("Failed to get users from direct endpoint:", usersError);
+            console.error("Failed to get users from direct endpoint");
             
             // Last resort: try to get enabled users as a fallback
             try {
@@ -95,102 +148,25 @@ function AdminDashboard() {
           }
         }
 
-        // After handling the total user count, let's specifically handle active users
-        try {
-          // Try different endpoint patterns that might exist in your backend
-          let activeUsersCount = 0;
-          let foundActiveUsers = false;
-
-          // Try first approach - dedicated active users stats
-          try {
-            const activeStatsRes = await axiosInstance.get("/api/admin/stats/users/active");
-            console.log("Active users stats response:", activeStatsRes.data);
-            if (typeof activeStatsRes.data === 'object' && activeStatsRes.data.count !== undefined) {
-              activeUsersCount = activeStatsRes.data.count;
-              foundActiveUsers = true;
-            } else if (typeof activeStatsRes.data === 'number') {
-              activeUsersCount = activeStatsRes.data;
-              foundActiveUsers = true;
-            }
-          } catch (err) {
-            console.log("No dedicated active users stats endpoint");
-          }
-
-          // Try second approach - get all enabled users
-          if (!foundActiveUsers) {
-            try {
-              const enabledRes = await axiosInstance.get("/api/admin/users/enabled");
-              console.log("Enabled users response:", enabledRes.data);
-              if (Array.isArray(enabledRes.data)) {
-                activeUsersCount = enabledRes.data.length;
-                foundActiveUsers = true;
-              }
-            } catch (err) {
-              console.log("No enabled users endpoint");
-            }
-          }
-
-          // Try third approach - calculate from total minus blocked
-          if (!foundActiveUsers && userStats.total > 0) {
-            try {
-              const blockedRes = await axiosInstance.get("/api/admin/users/blocked");
-              console.log("Blocked users response:", blockedRes.data);
-              if (Array.isArray(blockedRes.data)) {
-                const blockedCount = blockedRes.data.length;
-                activeUsersCount = userStats.total - blockedCount;
-                foundActiveUsers = true;
-              }
-            } catch (err) {
-              console.log("Could not calculate using blocked users");
-            }
-          }
-
-          // Last resort - users who logged in recently
-          if (!foundActiveUsers) {
-            try {
-              const recentLoginRes = await axiosInstance.get("/api/admin/users/recent-logins");
-              console.log("Recent logins response:", recentLoginRes.data);
-              if (Array.isArray(recentLoginRes.data)) {
-                activeUsersCount = recentLoginRes.data.length;
-                foundActiveUsers = true;
-              }
-            } catch (err) {
-              console.log("No recent logins endpoint");
-            }
-          }
-
-          // If we found active users through any method, update the stats
-          if (foundActiveUsers) {
-            userStats.active = activeUsersCount;
-            console.log("Set active users count to:", activeUsersCount);
-          } else if (userStats.total > 0) {
-            // Fallback: if we have the total users, estimate active users as 80% of total
-            userStats.active = Math.round(userStats.total * 0.8);
-            console.log("Estimated active users as 80% of total:", userStats.active);
-          }
-        } catch (activeError) {
-          console.error("Failed to fetch active users count:", activeError);
-          
-          // Fallback: if we have the total users from earlier, estimate active users as 80% of total
-          if (userStats.total > 0) {
-            userStats.active = Math.round(userStats.total * 0.8);
-            console.log("Estimated active users as 80% of total:", userStats.active);
-          }
-        }
+        // Handle active users fetching with optimization
+        const activeUsersData = await fetchActiveUsers(userStats.total);
+        userStats.active = activeUsersData;
+        
       } catch (userError) {
         console.error("Error in user stats processing:", userError);
       }
       
+      // Process post stats
       try {
-        // Get general post stats
-        const postsRes = await axiosInstance.get("/api/admin/stats/posts");
-        if (typeof postsRes.data === 'object') {
-          postStats.total = postsRes.data.total || 0;
+        if (postsPromise.status === 'fulfilled' && postsPromise.value) {
+          const postsRes = postsPromise.value;
+          if (typeof postsRes.data === 'object') {
+            postStats.total = postsRes.data.total || 0;
+          }
         }
         
         // Specifically get today's posts count
         const todayPostsRes = await axiosInstance.get("/api/admin/stats/posts/today");
-        console.log("Today's posts stats response:", todayPostsRes.data);
         
         if (typeof todayPostsRes.data === 'object' && todayPostsRes.data.count !== undefined) {
           postStats.todayTotal = todayPostsRes.data.count;
@@ -215,62 +191,254 @@ function AdminDashboard() {
             });
             
             postStats.todayTotal = todayPosts.length;
-            console.log("Calculated today's posts from all posts:", postStats.todayTotal);
           }
         } catch (err) {
-          console.error("Failed to calculate today's posts:", err);
+          console.error("Failed to calculate today's posts");
         }
       }
       
-      try {
-        const recentUsersRes = await axiosInstance.get("/api/admin/users/recent");
-        recentUsersData = recentUsersRes.data;
-      } catch (userError) {
-        console.error("Error fetching recent users:", userError);
+      // Process recent users data
+      if (recentUsersPromise.status === 'fulfilled' && recentUsersPromise.value) {
+        recentUsersData = recentUsersPromise.value.data || [];
+      } else {
+        console.error("Error fetching recent users");
       }
       
-      try {
-        const recentPostsRes = await axiosInstance.get("/api/admin/posts/recent");
-        recentPostsData = recentPostsRes.data;
-      } catch (postError) {
-        console.error("Error fetching recent posts:", postError);
+      // Process recent posts data
+      if (recentPostsPromise.status === 'fulfilled' && recentPostsPromise.value) {
+        recentPostsData = recentPostsPromise.value.data || [];
+      } else {
+        console.error("Error fetching recent posts");
       }
 
-      setStats({
+      // Prepare the stats object
+      const newStats = {
         totalUsers: userStats.total,
         totalPosts: postStats.total,
         newUsersToday: userStats.newToday,
         activeUsers: userStats.active,
         todayPosts: postStats.todayTotal
-      });
+      };
       
+      // Update state
+      setStats(newStats);
       setRecentUsers(recentUsersData);
       setRecentPosts(recentPostsData);
+      
+      // Cache the fetched data
+      setDataCache({
+        stats: newStats,
+        recentUsers: recentUsersData,
+        recentPosts: recentPostsData
+      });
+      setLastFetchTime(Date.now());
+      
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       // Use placeholder data as fallback
-      setStats({
+      const fallbackStats = {
         totalUsers: 25,
         totalPosts: 128,
         newUsersToday: 3,
         activeUsers: 12,
         todayPosts: 5
-      });
+      };
       
       // Sample data
-      setRecentUsers([
+      const fallbackUsers = [
         { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com', createdAt: new Date().toISOString() },
         { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com', createdAt: new Date().toISOString() }
-      ]);
+      ];
       
-      setRecentPosts([
+      const fallbackPosts = [
         { id: '1', title: 'First Post', username: 'John Doe', createdAt: new Date().toISOString() },
         { id: '2', title: 'Second Post', username: 'Jane Smith', createdAt: new Date().toISOString() }
-      ]);
+      ];
+      
+      setStats(fallbackStats);
+      setRecentUsers(fallbackUsers);
+      setRecentPosts(fallbackPosts);
+      
+      // Still cache the fallback data
+      setDataCache({
+        stats: fallbackStats,
+        recentUsers: fallbackUsers,
+        recentPosts: fallbackPosts
+      });
+      setLastFetchTime(Date.now());
     } finally {
       setLoading(false);
     }
-  };
+  }, [shouldUseCache]);
+
+  // Helper function to fetch active users
+  const fetchActiveUsers = useCallback(async (totalUsers) => {
+    let activeUsersCount = 0;
+    let foundActiveUsers = false;
+
+    try {
+      // Try first approach - dedicated active users stats
+      try {
+        const activeStatsRes = await axiosInstance.get("/api/admin/stats/users/active");
+        if (typeof activeStatsRes.data === 'object' && activeStatsRes.data.count !== undefined) {
+          activeUsersCount = activeStatsRes.data.count;
+          foundActiveUsers = true;
+        } else if (typeof activeStatsRes.data === 'number') {
+          activeUsersCount = activeStatsRes.data;
+          foundActiveUsers = true;
+        }
+      } catch (err) {
+        console.log("No dedicated active users stats endpoint");
+      }
+
+      // Try other approaches if first one failed
+      if (!foundActiveUsers) {
+        // Try sequence of fallbacks
+        const approaches = [
+          async () => {
+            const enabledRes = await axiosInstance.get("/api/admin/users/enabled");
+            if (Array.isArray(enabledRes.data)) {
+              return enabledRes.data.length;
+            }
+            throw new Error("Not found");
+          },
+          async () => {
+            if (totalUsers > 0) {
+              const blockedRes = await axiosInstance.get("/api/admin/users/blocked");
+              if (Array.isArray(blockedRes.data)) {
+                return totalUsers - blockedRes.data.length;
+              }
+            }
+            throw new Error("Not found");
+          },
+          async () => {
+            const recentLoginRes = await axiosInstance.get("/api/admin/users/recent-logins");
+            if (Array.isArray(recentLoginRes.data)) {
+              return recentLoginRes.data.length;
+            }
+            throw new Error("Not found");
+          }
+        ];
+
+        // Try each approach until one succeeds
+        for (const approach of approaches) {
+          if (!foundActiveUsers) {
+            try {
+              activeUsersCount = await approach();
+              foundActiveUsers = true;
+              break;
+            } catch (err) {
+              // Continue to next approach
+            }
+          }
+        }
+      }
+
+      // Fallback if all approaches failed
+      if (!foundActiveUsers && totalUsers > 0) {
+        activeUsersCount = Math.round(totalUsers * 0.8);
+      }
+    } catch (error) {
+      console.error("Error determining active users count:", error);
+      if (totalUsers > 0) {
+        activeUsersCount = Math.round(totalUsers * 0.8);
+      }
+    }
+
+    return activeUsersCount;
+  }, []);
+
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      try {
+        const userData = localStorage.getItem("user");
+        if (!userData) {
+          navigate("/login");
+          return;
+        }
+
+        const userObj = JSON.parse(userData);
+        if (userObj.role !== "ROLE_ADMIN") {
+          navigate("/");
+          return;
+        }
+        
+        setUser(userObj);
+        await fetchDashboardData();
+      } catch (error) {
+        console.error("Error checking admin access:", error);
+        navigate("/");
+      }
+    };
+
+    checkAdminAccess();
+    
+    // Set up a data refresh interval (every 5 minutes)
+    const refreshInterval = setInterval(() => {
+      if (!shouldUseCache()) {
+        fetchDashboardData();
+      }
+    }, CACHE_VALIDITY);
+    
+    return () => clearInterval(refreshInterval);
+  }, [navigate, fetchDashboardData, shouldUseCache]);
+
+  // Memoize rendered tables for better performance
+  const renderRecentUsersTable = useMemo(() => (
+    <div className="mt-8">
+      <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>
+      <div className="mt-4 flex flex-col">
+        <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {recentUsers.map((user) => (
+                    <UserTableRow key={user.id} user={user} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ), [recentUsers]);
+
+  const renderRecentPostsTable = useMemo(() => (
+    <div className="mt-8">
+      <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>
+      <div className="mt-4 flex flex-col">
+        <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {recentPosts.map((post) => (
+                    <PostTableRow key={post.id} post={post} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ), [recentPosts]);
 
   if (loading) {
     return (
@@ -378,7 +546,7 @@ function AdminDashboard() {
               to="/admin/settings" 
               className="mt-2 flex items-center px-4 py-2 text-sm rounded-md text-white hover:bg-gray-700"
             >
-              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24 24" stroke="currentColor">
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -410,148 +578,36 @@ function AdminDashboard() {
           <div className="px-4 py-6 sm:px-0">
             <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
             
-            {/* Stats Cards */}
+            {/* Stats Cards - Using memoized components */}
             <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {/* Total Users Card */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-                    <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalUsers}</dd>
-                  </dl>
-                </div>
-                <div className="bg-gray-50 px-4 py-3">
-                  <div className="text-sm">
-                    <Link to="/admin/users" className="font-medium text-indigo-600 hover:text-indigo-500">
-                      View all users
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              <StatCard 
+                title="Total Users" 
+                value={stats.totalUsers} 
+                link="/admin/users" 
+                linkText="View all users" 
+              />
 
-              {/* Total Posts Card */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Today Total Posts</dt>
-                    <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.todayPosts}</dd>
-                  </dl>
-                </div>
-                <div className="bg-gray-50 px-4 py-3">
-                  <div className="text-sm">
-                    <Link to="/admin/posts" className="font-medium text-indigo-600 hover:text-indigo-500">
-                      View all posts
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              <StatCard 
+                title="Today Total Posts" 
+                value={stats.todayPosts} 
+                link="/admin/posts" 
+                linkText="View all posts" 
+              />
 
-              {/* New Users Today Card */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">New Users Today</dt>
-                    <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.newUsersToday}</dd>
-                  </dl>
-                </div>
-              </div>
+              <StatCard 
+                title="New Users Today" 
+                value={stats.newUsersToday} 
+              />
 
-              {/* Active Users Card */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Active Users</dt>
-                    <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.activeUsers}</dd>
-                  </dl>
-                </div>
-              </div>
+              <StatCard 
+                title="Active Users" 
+                value={stats.activeUsers} 
+              />
             </div>
 
-            {/* Recent Users Table */}
-            <div className="mt-8">
-              <h2 className="text-lg font-medium text-gray-900">Recent Users</h2>
-              <div className="mt-4 flex flex-col">
-                <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                  <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                    <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Name
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Email
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Joined
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {recentUsers.map((user) => (
-                            <tr key={user.id}>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-500">{user.email}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {new Date(user.createdAt).toLocaleDateString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Posts Table */}
-            <div className="mt-8">
-              <h2 className="text-lg font-medium text-gray-900">Recent Posts</h2>
-              <div className="mt-4 flex flex-col">
-                <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                  <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                    <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Title
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Author
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Created
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {recentPosts.map((post) => (
-                            <tr key={post.id}>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{post.title}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-500">{post.username}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {new Date(post.createdAt).toLocaleDateString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Memoized tables for better performance */}
+            {renderRecentUsersTable}
+            {renderRecentPostsTable}
 
             {/* Admin Actions */}
             <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -604,4 +660,4 @@ function AdminDashboard() {
   );
 }
 
-export default AdminDashboard;
+export default React.memo(AdminDashboard);

@@ -11,7 +11,10 @@ import com.mongodb.client.gridfs.model.GridFSUploadOptions;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,6 +27,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +39,7 @@ public class PostService {
     private final UserRepository userRepository;
     private final MongoTemplate mongoTemplate;
     private final GridFSBucket gridFSBucket;
+    private final Map<String, User> userCache = new ConcurrentHashMap<>();
 
     private static final int MAX_VIDEO_SIZE_MB = 15; // 15MB
     private static final List<String> ALLOWED_VIDEO_TYPES = List.of("video/mp4", "video/quicktime");
@@ -40,6 +47,8 @@ public class PostService {
 
     @Value("${upload.directory}")
     private String uploadDirectory;
+    
+    private Path uploadsPath;
 
     @Autowired
     public PostService(
@@ -50,11 +59,31 @@ public class PostService {
         this.userRepository = userRepository;
         this.mongoTemplate = mongoTemplate;
         this.gridFSBucket = GridFSBuckets.create(mongoTemplate.getDb(), "media");
+        
+        // Initialize uploads path at startup to avoid repeated creation checks
+        try {
+            this.uploadsPath = Paths.get("D:", "Learn_Book", "backend", "uploads");
+            if (!Files.exists(uploadsPath)) {
+                Files.createDirectories(uploadsPath);
+                System.out.println("Created uploads directory at: " + uploadsPath.toAbsolutePath());
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to initialize uploads directory: " + e.getMessage());
+        }
     }
 
+    @Cacheable(value = "userDetails", key = "#userId")
     private User getUserDetails(String userId) {
-        return userRepository.findById(userId)
+        // Check in-memory cache first
+        if (userCache.containsKey(userId)) {
+            return userCache.get(userId);
+        }
+        
+        // If not in cache, get from database and cache it
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        userCache.put(userId, user);
+        return user;
     }
 
     public PostResponse convertToPostResponse(Post post) {
@@ -72,15 +101,24 @@ public class PostService {
 
         // Handle potentially deleted users gracefully
         try {
-            userRepository.findById(post.getUserId()).ifPresentOrElse(
-                    user -> {
-                        response.setUserName(user.getFirstName() + " " + user.getLastName());
-                        response.setUserProfilePicture(user.getProfilePicture());
-                    },
-                    () -> {
-                        response.setUserName("Deleted User");
-                        response.setUserProfilePicture(null);
-                    });
+            // Use cached user data if available
+            if (userCache.containsKey(post.getUserId())) {
+                User user = userCache.get(post.getUserId());
+                response.setUserName(user.getFirstName() + " " + user.getLastName());
+                response.setUserProfilePicture(user.getProfilePicture());
+            } else {
+                userRepository.findById(post.getUserId()).ifPresentOrElse(
+                        user -> {
+                            response.setUserName(user.getFirstName() + " " + user.getLastName());
+                            response.setUserProfilePicture(user.getProfilePicture());
+                            // Cache the user data
+                            userCache.put(post.getUserId(), user);
+                        },
+                        () -> {
+                            response.setUserName("Deleted User");
+                            response.setUserProfilePicture(null);
+                        });
+            }
         } catch (Exception e) {
             System.err.println("Error fetching user for post " + post.getId() + ": " + e.getMessage());
             response.setUserName("Deleted User");
@@ -104,13 +142,6 @@ public class PostService {
         List<String> mediaIds = new ArrayList<>();
 
         try {
-            // Ensure upload directory exists - use direct path to backenduploads
-            Path uploadsPath = Paths.get("backend", "uploads");
-            if (!Files.exists(uploadsPath)) {
-                Files.createDirectories(uploadsPath);
-                System.out.println("Created uploads directory at: " + uploadsPath.toAbsolutePath());
-            }
-
             // Handle video upload
             if (video != null && !video.isEmpty()) {
                 validateVideo(video);
@@ -119,8 +150,8 @@ public class PostService {
                 post.setVideoUrl("/api/media/" + videoId); // URL for retrieval
                 post.addMediaType(videoId, "video/" + video.getContentType().split("/")[1]); // Store content type
 
-                // Save to local storage
-                saveToLocalStorage(video, videoId);
+                // Save to local storage asynchronously
+                saveToLocalStorageAsync(video, videoId);
             }
 
             // Handle image uploads
@@ -133,8 +164,8 @@ public class PostService {
                     mediaIds.add(imageId);
                     post.addMediaType(imageId, image.getContentType()); // Store content type
 
-                    // Save to local storage
-                    saveToLocalStorage(image, imageId);
+                    // Save to local storage asynchronously
+                    saveToLocalStorageAsync(image, imageId);
                 }
                 post.setImageUrls(mediaIds.stream()
                         .map(id -> "/api/media/" + id)
@@ -149,16 +180,30 @@ public class PostService {
         }
     }
 
+    @Async
+    public CompletableFuture<Void> saveToLocalStorageAsync(MultipartFile file, String mediaId) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                saveToLocalStorage(file, mediaId);
+            } catch (IOException e) {
+                System.err.println("Failed to save file to local storage: " + e.getMessage());
+            }
+        });
+    }
+
     private void saveToLocalStorage(MultipartFile file, String mediaId) throws IOException {
-        // Use direct absolute path to D:\Learn_Book\backend uploads folder
-        Path uploadsPath = Paths.get("D:", "Learn_Book", "backend", "uploads");
-        Files.createDirectories(uploadsPath); // Ensure directory exists
-
+        // Use the pre-initialized uploads path
         Path filePath = uploadsPath.resolve(mediaId);
-        System.out.println("Saving file to: " + filePath);
-
+        
+        // Use buffered output for better performance
         try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
-            fos.write(file.getBytes());
+            byte[] buffer = new byte[8192]; // 8KB buffer for better performance
+            int bytesRead;
+            var is = file.getInputStream();
+            while ((bytesRead = is.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+            fos.flush();
         }
     }
 
@@ -185,6 +230,7 @@ public class PostService {
         return fileId.toHexString();
     }
 
+    @Cacheable(value = "allPosts")
     public List<PostResponse> getAllPosts() {
         try {
             List<Post> posts = postRepository.findAllByOrderByCreatedAtDesc();
@@ -197,6 +243,7 @@ public class PostService {
         }
     }
 
+    @Cacheable(value = "userPosts", key = "#userId")
     public List<PostResponse> getUserPosts(String userId) {
         List<Post> posts = postRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return posts.stream()
@@ -204,6 +251,7 @@ public class PostService {
                 .collect(Collectors.toList());
     }
 
+    @CacheEvict(value = {"allPosts", "userPosts"}, key = "#userId")
     public void deletePost(String postId, String userId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
@@ -214,26 +262,27 @@ public class PostService {
 
         // Delete associated media from GridFS and local storage
         if (post.getMediaIds() != null) {
-            for (String mediaId : post.getMediaIds()) {
+            // Process deletions in parallel
+            post.getMediaIds().parallelStream().forEach(mediaId -> {
                 try {
                     // Delete from GridFS
                     gridFSBucket.delete(new ObjectId(mediaId));
 
-                    // Delete from local storage - use absolute path
-                    Path mediaPath = Paths.get("D:", "Learn_Book", "backend", "uploads", mediaId);
+                    // Delete from local storage using pre-initialized path
+                    Path mediaPath = uploadsPath.resolve(mediaId);
                     if (Files.exists(mediaPath)) {
                         Files.delete(mediaPath);
-                        System.out.println("Deleted file: " + mediaPath);
                     }
                 } catch (Exception e) {
                     System.err.println("Failed to delete media: " + mediaId + " - " + e.getMessage());
                 }
-            }
+            });
         }
 
         postRepository.deleteById(postId);
     }
 
+    @CacheEvict(value = {"allPosts", "userPosts"}, key = "#userId")
     public PostResponse updatePost(String postId, String userId, String content, List<MultipartFile> images) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
@@ -247,37 +296,44 @@ public class PostService {
 
         try {
             if (images != null && !images.isEmpty()) {
-                // Delete old media
+                // Delete old media in parallel
                 if (!mediaIds.isEmpty()) {
-                    for (String mediaId : mediaIds) {
-                        try {
-                            // Delete from GridFS
-                            gridFSBucket.delete(new ObjectId(mediaId));
-
-                            // Delete from local storage - use absolute path
-                            Path mediaPath = Paths.get("D:", "Learn_Book", "backend", "uploads", mediaId);
-                            if (Files.exists(mediaPath)) {
-                                Files.delete(mediaPath);
-                                System.out.println("Deleted file during update: " + mediaPath);
+                    CompletableFuture<?>[] deleteFutures = mediaIds.stream()
+                        .map(mediaId -> CompletableFuture.runAsync(() -> {
+                            try {
+                                // Delete from GridFS
+                                gridFSBucket.delete(new ObjectId(mediaId));
+                                
+                                // Delete from local storage
+                                Path mediaPath = uploadsPath.resolve(mediaId);
+                                if (Files.exists(mediaPath)) {
+                                    Files.delete(mediaPath);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Failed to delete old media: " + mediaId + " - " + e.getMessage());
                             }
-                        } catch (Exception e) {
-                            System.err.println("Failed to delete old media: " + mediaId + " - " + e.getMessage());
-                        }
-                    }
+                        }))
+                        .toArray(CompletableFuture[]::new);
+                    
+                    // Wait for all deletions to complete
+                    CompletableFuture.allOf(deleteFutures).join();
                     mediaIds.clear();
                 }
 
-                // Save new images
+                // Save new images with parallel processing
+                List<CompletableFuture<String>> uploadFutures = new ArrayList<>();
                 for (MultipartFile image : images) {
                     if (!image.getContentType().startsWith("image/")) {
                         throw new IllegalArgumentException("Only image files are supported");
                     }
+                    // Upload each image and add to futures list
                     String imageId = saveMedia(image, "image");
                     mediaIds.add(imageId);
-
-                    // Save to local storage
-                    saveToLocalStorage(image, imageId);
+                    
+                    // Save to local storage asynchronously
+                    saveToLocalStorageAsync(image, imageId);
                 }
+                
                 post.setImageUrls(mediaIds.stream()
                         .map(id -> "/api/media/" + id)
                         .collect(Collectors.toList()));
