@@ -1,11 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import axiosInstance from "../utils/axios";
 
 const AdminSidebar = ({ user }) => {
   const [expanded, setExpanded] = useState({
     users: false,
     content: false
   });
+  const [reportStats, setReportStats] = useState({
+    pending: 0
+  });
+
+  // Fetch report stats when component mounts
+  useEffect(() => {
+    const fetchReportStats = async () => {
+      try {
+        const response = await axiosInstance.get('/api/reports/stats');
+        if (response.data) {
+          setReportStats(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching report stats:', error);
+      }
+    };
+
+    fetchReportStats();
+    
+    // Refresh stats every 60 seconds
+    const interval = setInterval(fetchReportStats, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const toggleSection = (section) => {
     setExpanded(prev => ({
@@ -160,6 +184,25 @@ const AdminSidebar = ({ user }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
                 Manage Posts
+              </NavLink>
+
+              <NavLink
+                to="/admin/reports"
+                className={({ isActive }) =>
+                  isActive
+                    ? "group flex items-center px-3 py-2 text-sm font-medium rounded-lg bg-indigo-700 text-white"
+                    : "group flex items-center px-3 py-2 text-sm font-medium rounded-lg text-indigo-100 hover:bg-indigo-700 hover:bg-opacity-50 transition-all duration-200"
+                }
+              >
+                <svg className="h-4 w-4 mr-3 text-indigo-300 group-hover:text-white transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Reported Posts
+                {reportStats.pending > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                    {reportStats.pending}
+                  </span>
+                )}
               </NavLink>
 
               <NavLink

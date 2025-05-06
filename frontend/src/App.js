@@ -14,6 +14,7 @@ import AdminAddUser from "./pages/AdminAddUser";
 import AdminBlockedUsers from "./pages/AdminBlockedUsers";
 import GroupCreate from "./pages/GroupCreate";
 import GroupsPage from "./pages/GroupsPage";
+import ReportedPosts from "./pages/admin/ReportedPosts"; // Import the ReportedPosts page
 import { AuthProvider } from "./context/AuthContext";
 import PrivateRoute from "./components/PrivateRoute"; // Update this line
 import Header from "./components/Header"; // Import the Header component
@@ -79,6 +80,14 @@ function App() {
             element={
               <AdminRoute>
                 <AdminBlockedUsers />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              <AdminRoute>
+                <ReportedPosts />
               </AdminRoute>
             }
           />

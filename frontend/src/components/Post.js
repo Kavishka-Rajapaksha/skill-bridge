@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
 import Comments from "./Comments";
 import ReactionButton from "./ReactionButton";
+import ReportModal from "./ReportModal";
 
 function Post({ post, onPostDeleted, onPostUpdated }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -18,6 +19,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(Date.now());
+  const [showReportModal, setShowReportModal] = useState(false);
   const user = JSON.parse(localStorage.getItem("user"));
 
   useEffect(() => {
@@ -210,6 +212,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     setCommentCount(newCount);
   };
 
+  const handleReportSuccess = () => {
+    console.log("Report submitted successfully");
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 mb-6 overflow-hidden border border-gray-100">
       {/* Post Header with User Info and Options */}
@@ -242,7 +248,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         </div>
 
         {/* Post Options Menu */}
-        {user && (user.id === post.userId || isUserAdmin) && (
+        {user && (
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -276,22 +282,34 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                     Edit Post
                   </button>
                 )}
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className={`w-full text-left px-4 py-3 text-sm flex items-center ${
-                    deleting ? "text-gray-400 bg-gray-50" : "text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
-                  }`}
-                >
-                  <svg className={`w-4 h-4 mr-3 ${deleting ? "text-gray-400" : "text-red-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  {deleting
-                    ? "Deleting..."
-                    : isUserAdmin && user.id !== post.userId
-                    ? "Delete as Admin"
-                    : "Delete Post"}
-                </button>
+                {user.id === post.userId || isUserAdmin ? (
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className={`w-full text-left px-4 py-3 text-sm flex items-center ${
+                      deleting ? "text-gray-400 bg-gray-50" : "text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+                    }`}
+                  >
+                    <svg className={`w-4 h-4 mr-3 ${deleting ? "text-gray-400" : "text-red-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    {deleting
+                      ? "Deleting..."
+                      : isUserAdmin && user.id !== post.userId
+                      ? "Delete as Admin"
+                      : "Delete Post"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowReportModal(true)}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors duration-200 flex items-center"
+                  >
+                    <svg className="w-4 h-4 mr-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Report Post
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -529,7 +547,29 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
               <span className="font-medium">{commentCount}</span>
             </button>
             
-            <button className="flex items-center space-x-2 px-3 py-1.5 rounded-full text-gray-600 hover:bg-gray-100 transition-colors duration-200">
+            {user.id !== post.userId && (
+              <button 
+                onClick={() => setShowReportModal(true)}
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors duration-200"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <span>Report</span>
+              </button>
+            )}
+            
+            <button className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-gray-600 hover:bg-gray-100 transition-colors duration-200">
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -561,6 +601,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
           />
         </div>
       )}
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        postId={post.id}
+        onSuccess={handleReportSuccess}
+      />
     </div>
   );
 }
