@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axiosInstance from "../utils/axios";
 
 function ReactionButton({ postId, userId, onReactionChange }) {
@@ -6,32 +6,62 @@ function ReactionButton({ postId, userId, onReactionChange }) {
   const [likeCount, setLikeCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchReactionStatus();
-  }, [postId, userId]);
+  const fetchReactionStatus = useCallback(
+    async (retries = 3) => {
+      if (!postId || !userId) return;
 
-  const fetchReactionStatus = async () => {
-    if (!postId || !userId) return;
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          const response = await axiosInstance.get("/api/reactions/status", {
+            params: { userId, postId },
+            timeout: 10000, // Increased timeout
+          });
 
-    try {
-      const response = await axiosInstance.get("/api/reactions/status", {
-        params: { userId, postId },
-        timeout: 5000,
-      });
+          if (response?.data) {
+            setLiked(response.data.liked);
+            setLikeCount(response.data.count);
+            return;
+          }
+        } catch (error) {
+          const isTimeout = error.code === "ECONNABORTED";
+          const isNetworkError = !error.response;
 
-      if (response?.data) {
-        setLiked(response.data.liked);
-        setLikeCount(response.data.count);
+          if (attempt === retries - 1 || (!isTimeout && !isNetworkError)) {
+            console.error(
+              "Error fetching reaction status:",
+              error?.response?.data?.error || error.message
+            );
+            setLiked(false);
+            setLikeCount(0);
+            return;
+          }
+          // Wait before retrying
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1))
+          );
+        }
       }
-    } catch (error) {
-      console.error(
-        "Error fetching reaction status:",
-        error?.response?.data?.error || error.message
-      );
-      setLiked(false);
-      setLikeCount(0);
+    },
+    [postId, userId]
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    if (postId && userId) {
+      fetchReactionStatus().catch((error) => {
+        if (mounted) {
+          console.error("Failed to fetch reaction status:", error);
+        }
+      });
     }
-  };
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [fetchReactionStatus]);
 
   const handleToggleLike = async () => {
     if (loading || !postId || !userId) return;
@@ -40,7 +70,7 @@ function ReactionButton({ postId, userId, onReactionChange }) {
     try {
       const response = await axiosInstance.post("/api/reactions/toggle", null, {
         params: { userId, postId },
-        timeout: 5000,
+        timeout: 10000, // Increased timeout
       });
 
       if (response?.data) {
@@ -53,6 +83,8 @@ function ReactionButton({ postId, userId, onReactionChange }) {
         "Error toggling reaction:",
         error?.response?.data?.error || error.message
       );
+      // Refresh reaction status on error
+      await fetchReactionStatus();
     } finally {
       setLoading(false);
     }
