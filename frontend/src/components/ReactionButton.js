@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axiosInstance from "../utils/axios";
 
 const reactions = {
@@ -18,6 +18,11 @@ function ReactionButton({ postId, userId, onReactionChange }) {
     reactions: {},
   });
   const [loading, setLoading] = useState(false);
+  const requestQueue = useRef([]);
+  const processingQueue = useRef(false);
+  const abortController = useRef(null);
+  const mounted = useRef(true);
+  const timeout = useRef(null);
 
   useEffect(() => {
     if (postId && userId) {
@@ -26,31 +31,152 @@ function ReactionButton({ postId, userId, onReactionChange }) {
     }
   }, [postId, userId]);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(timeout.current);
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+      // Clear the queue on unmount
+      requestQueue.current = [];
+      processingQueue.current = false;
+    };
+  }, []);
+
+  const enqueueRequest = (request) => {
+    if (!mounted.current) return;
+
+    // Debounce requests
+    clearTimeout(timeout.current);
+    timeout.current = setTimeout(() => {
+      requestQueue.current.push(request);
+      processQueue();
+    }, 100);
+  };
+
+  const processQueue = async () => {
+    if (
+      processingQueue.current ||
+      requestQueue.current.length === 0 ||
+      !mounted.current
+    )
+      return;
+
+    processingQueue.current = true;
+    let currentRequest;
+
+    try {
+      while (requestQueue.current.length > 0 && mounted.current) {
+        currentRequest = requestQueue.current[0];
+        try {
+          await currentRequest();
+          requestQueue.current.shift();
+          if (mounted.current && requestQueue.current.length > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        } catch (error) {
+          if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
+            console.log("Request was canceled, clearing queue");
+            requestQueue.current = [];
+            break;
+          } else if (error.code === "ECONNABORTED") {
+            console.log("Request timed out, retrying...");
+            continue;
+          }
+          console.error("Request failed:", error);
+          requestQueue.current.shift();
+        }
+      }
+    } finally {
+      processingQueue.current = false;
+    }
+  };
+
+  const fetchWithRetry = async (
+    requestFn,
+    maxRetries = 3,
+    initialDelay = 1000
+  ) => {
+    if (!mounted.current) return;
+
+    // Cancel any existing request
+    if (abortController.current) {
+      abortController.current.abort();
+    }
+    abortController.current = new AbortController();
+
+    let delay = initialDelay;
+    let lastError;
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        if (!mounted.current) {
+          throw new Error("Component unmounted");
+        }
+        return await requestFn(abortController.current.signal);
+      } catch (error) {
+        lastError = error;
+        if (
+          !mounted.current ||
+          error.name === "AbortError" ||
+          error.code === "ERR_CANCELED"
+        ) {
+          console.log("Request was canceled or component unmounted");
+          throw error;
+        }
+        if (i === maxRetries - 1) break;
+        if (error.code === "ECONNABORTED" || error.code === "ERR_NETWORK") {
+          console.log(`Attempt ${i + 1} failed, retrying in ${delay}ms`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 1.5;
+          continue;
+        }
+        throw error;
+      }
+    }
+    console.error("Max retries reached:", lastError);
+    throw lastError;
+  };
+
   const fetchReactions = async () => {
     try {
-      const response = await axiosInstance.get(
-        `/api/reactions/${postId}/stats`
-      );
-      if (response.data) {
-        setReactionStats(response.data);
-      }
+      enqueueRequest(async () => {
+        const response = await fetchWithRetry((signal) =>
+          axiosInstance.get(`/api/reactions/post/${postId}`, {
+            timeout: 8000,
+            signal,
+          })
+        );
+        if (response?.data) {
+          setReactionStats(response.data);
+        }
+      });
     } catch (error) {
-      console.error("Error fetching reactions:", error);
-      // Set default empty state
-      setReactionStats({ total: 0, reactions: {} });
+      if (error.name !== "AbortError") {
+        console.error("Error fetching reactions:", error);
+        setReactionStats({ total: 0, reactions: {} });
+      }
     }
   };
 
   const fetchCurrentUserReaction = async () => {
     try {
-      const response = await axiosInstance.get(
-        `/api/reactions/${postId}/user/${userId}`
-      );
-      if (response.data) {
-        setCurrentReaction(response.data.type);
-      }
+      enqueueRequest(async () => {
+        const response = await fetchWithRetry((signal) =>
+          axiosInstance.get(`/api/reactions/user`, {
+            params: { userId, postId },
+            timeout: 8000,
+            signal,
+          })
+        );
+        if (response?.data) {
+          setCurrentReaction(response.data.type);
+        }
+      });
     } catch (error) {
-      if (error.response?.status !== 404) {
+      if (error.name !== "AbortError" && error.response?.status !== 404) {
         console.error("Error fetching user's reaction:", error);
       }
       setCurrentReaction(null);
@@ -62,25 +188,40 @@ function ReactionButton({ postId, userId, onReactionChange }) {
 
     try {
       setLoading(true);
-      if (currentReaction === reaction) {
-        // Remove reaction
-        await axiosInstance.delete(`/api/reactions/${postId}/user/${userId}`);
-        setCurrentReaction(null);
-      } else {
-        // Add/update reaction
-        await axiosInstance.post(`/api/reactions/${postId}`, {
-          userId,
-          type: reaction,
-        });
-        setCurrentReaction(reaction);
-      }
+      enqueueRequest(async () => {
+        if (currentReaction === reaction) {
+          await fetchWithRetry((signal) =>
+            axiosInstance.delete("/api/reactions", {
+              params: { userId, postId },
+              timeout: 8000,
+              signal,
+            })
+          );
+          setCurrentReaction(null);
+        } else {
+          await fetchWithRetry((signal) =>
+            axiosInstance.post("/api/reactions", null, {
+              params: { userId, postId, type: reaction },
+              timeout: 8000,
+              signal,
+            })
+          );
+          setCurrentReaction(reaction);
+        }
+      });
 
       await fetchReactions();
       setShowReactions(false);
       if (onReactionChange) onReactionChange();
     } catch (error) {
-      console.error("Error handling reaction:", error);
-      alert("Failed to update reaction. Please try again.");
+      if (error.name !== "AbortError") {
+        console.error("Error handling reaction:", error);
+        const errorMessage =
+          error.response?.data?.message || error.code === "ECONNABORTED"
+            ? "Request timed out. Please try again."
+            : "Failed to update reaction";
+        alert(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
