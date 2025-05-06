@@ -12,11 +12,11 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import AdminAddUser from "./pages/AdminAddUser";
 import AdminBlockedUsers from "./pages/AdminBlockedUsers";
+import GroupCreate from "./pages/GroupCreate";
+import GroupsPage from "./pages/GroupsPage";
 import { AuthProvider } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
-
+import PrivateRoute from "./components/PrivateRoute"; // Update this line
 import Header from "./components/Header"; // Import the Header component
-
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -48,7 +48,6 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
 
           {/* Admin Routes */}
           <Route
@@ -81,6 +80,30 @@ function App() {
               <AdminRoute>
                 <AdminBlockedUsers />
               </AdminRoute>
+            }
+          />
+          <Route
+            path="/groups/create"
+            element={
+              <PrivateRoute>
+                <GroupCreate />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/groups"
+            element={
+              <PrivateRoute>
+                <GroupsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/groups/:type"
+            element={
+              <PrivateRoute>
+                <GroupsPage />
+              </PrivateRoute>
             }
           />
           {/* Add other routes as needed */}
