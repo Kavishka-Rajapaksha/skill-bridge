@@ -37,7 +37,7 @@ import com.mongodb.client.gridfs.model.GridFSFile;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" }) // Add port 3002
+@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
 public class PostController {
     private static final Logger logger = Logger.getLogger(PostController.class.getName());
     private final PostService postService;
@@ -60,6 +60,7 @@ public class PostController {
             @RequestParam(value = "video", required = false) MultipartFile video) {
         try {
             if (userId == null || userId.isEmpty()) {
+                logger.warning("User ID is required");
                 return ResponseEntity.badRequest().body("User ID is required");
             }
 
@@ -78,19 +79,36 @@ public class PostController {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             logger.severe("Error creating post: " + e.getMessage());
-            e.printStackTrace(); // Log full stack trace
-            return ResponseEntity.badRequest().body("Failed to create post: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create post: " + e.getMessage());
         }
     }
 
     @GetMapping("/posts")
-    public ResponseEntity<List<PostResponse>> getAllPosts() {
-        return ResponseEntity.ok(postService.getAllPosts());
+    public ResponseEntity<?> getAllPosts() {
+        try {
+            List<PostResponse> posts = postService.getAllPosts();
+            return ResponseEntity.ok(posts);
+        } catch (Exception e) {
+            logger.severe("Error fetching posts: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to fetch posts: " + e.getMessage());
+        }
     }
 
     @GetMapping("/posts/user/{userId}")
-    public ResponseEntity<List<PostResponse>> getUserPosts(@PathVariable String userId) {
-        return ResponseEntity.ok(postService.getUserPosts(userId));
+    public ResponseEntity<?> getUserPosts(@PathVariable String userId) {
+        try {
+            List<PostResponse> posts = postService.getUserPosts(userId);
+            return ResponseEntity.ok(posts);
+        } catch (Exception e) {
+            logger.severe("Error fetching posts for user ID: " + userId + " - " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to fetch user posts: " + e.getMessage());
+        }
     }
 
     @DeleteMapping("/posts/{postId}")
@@ -100,8 +118,14 @@ public class PostController {
         try {
             postService.deletePost(postId, userId);
             return ResponseEntity.ok().build();
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
+            logger.warning("Invalid request: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.severe("Error deleting post: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to delete post: " + e.getMessage());
         }
     }
 
@@ -114,8 +138,14 @@ public class PostController {
         try {
             PostResponse post = postService.updatePost(postId, userId, content, images);
             return ResponseEntity.ok(post);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
+            logger.warning("Invalid request: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.severe("Error updating post: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to update post: " + e.getMessage());
         }
     }
 
@@ -125,7 +155,7 @@ public class PostController {
             logger.info("Fetching media with ID: " + mediaId);
 
             // Check if file exists in local storage first
-            Path localFilePath = Paths.get("backend", "uploads", mediaId);
+            Path localFilePath = Paths.get("D:", "Learn_Book", "backend", "uploads", mediaId);
             if (Files.exists(localFilePath)) {
                 logger.info("Found media in local storage: " + localFilePath);
                 byte[] data = Files.readAllBytes(localFilePath);
@@ -145,7 +175,6 @@ public class PostController {
                         .body(new ByteArrayResource(data));
             }
 
-            // If not in local storage, fallback to GridFS
             // Validate ObjectId format
             if (!ObjectId.isValid(mediaId)) {
                 logger.warning("Invalid media ID format: " + mediaId);
@@ -199,7 +228,6 @@ public class PostController {
     }
 
     private String determineContentType(String filename, org.bson.Document metadata) {
-        // Try to get from metadata first
         if (metadata != null && metadata.containsKey("contentType")) {
             return metadata.getString("contentType");
         }
@@ -213,7 +241,6 @@ public class PostController {
             }
         }
 
-        // Fallback to filename extension
         if (filename != null) {
             filename = filename.toLowerCase();
             if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
@@ -236,7 +263,6 @@ public class PostController {
             }
         }
 
-        // Default fallback mana charuk
         return "application/octet-stream";
     }
 }

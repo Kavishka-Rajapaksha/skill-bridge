@@ -31,29 +31,36 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
   // Fetch media as a blob and create object URL
   const getMediaUrl = async (mediaId, originalUrl) => {
+    if (!mediaId) return getFullUrl(originalUrl);
+
     try {
-      // Check if media type is known
-      const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
+      // Add cache check
+      if (mediaUrls[mediaId]) {
+        return mediaUrls[mediaId];
+      }
 
       const response = await axiosInstance.get(`/api/media/${mediaId}`, {
         responseType: "blob",
+        validateStatus: (status) => status === 200 || status === 404,
       });
 
-      if (response.data && response.data.url) {
-        // New format where response.data contains { url, type, size }
-        return response.data.url;
-      } else if (response.data instanceof Blob && response.data.size > 0) {
-        // Fallback for direct blob responses
-        return URL.createObjectURL(response.data);
+      // If media not found, use fallback without warning
+      if (response.status === 404) {
+        return getFullUrl(originalUrl);
       }
 
-      console.warn(
-        `Invalid or empty media data for ${mediaId}, using fallback URL`
-      );
+      if (response.data instanceof Blob && response.data.size > 0) {
+        const blob = response.data;
+        const url = URL.createObjectURL(blob);
+        return url;
+      }
+
+      // Silently fallback to original URL if blob is invalid
       return getFullUrl(originalUrl);
     } catch (error) {
-      console.error(`Error loading media ${mediaId}:`, error);
-      setMediaErrors((prev) => ({ ...prev, [mediaId]: true }));
+      if (error.response?.status !== 404) {
+        console.error(`Error loading media ${mediaId}:`, error);
+      }
       return getFullUrl(originalUrl);
     }
   };
@@ -61,40 +68,51 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   // Load all media URLs
   useEffect(() => {
     const loadMedia = async () => {
-      const newMediaUrls = {};
+      const newMediaUrls = { ...mediaUrls };
+      const loadPromises = [];
 
-      // Handle video
+      // Load video if exists
       if (post.videoUrl) {
         const mediaId = post.videoUrl.split("/").pop();
-        try {
-          newMediaUrls.video = await getMediaUrl(mediaId, post.videoUrl);
-        } catch (error) {
-          console.error("Failed to load video:", error);
-        }
+        loadPromises.push(
+          getMediaUrl(mediaId, post.videoUrl)
+            .then((url) => {
+              newMediaUrls.video = url;
+            })
+            .catch(() => {}) // Silently handle errors
+        );
       }
 
-      // Handle images
+      // Load images
       if (post.imageUrls?.length) {
         for (const url of post.imageUrls) {
           const mediaId = url.split("/").pop();
-          try {
-            const mediaUrl = await getMediaUrl(mediaId, url);
-            newMediaUrls[mediaId] = mediaUrl;
-          } catch (error) {
-            console.error("Failed to load image:", error);
-          }
+          loadPromises.push(
+            getMediaUrl(mediaId, url)
+              .then((mediaUrl) => {
+                newMediaUrls[mediaId] = mediaUrl;
+              })
+              .catch(() => {}) // Silently handle errors
+          );
         }
       }
 
-      setMediaUrls(newMediaUrls);
+      // Wait for all media to load
+      await Promise.allSettled(loadPromises);
+
+      if (isMounted.current) {
+        setMediaUrls(newMediaUrls);
+      }
     };
 
+    const isMounted = { current: true };
     loadMedia();
 
-    // Cleanup object URLs
     return () => {
+      isMounted.current = false;
+      // Cleanup object URLs
       Object.values(mediaUrls).forEach((url) => {
-        if (url && typeof url === "string" && url.startsWith("blob:")) {
+        if (url?.startsWith("blob:")) {
           URL.revokeObjectURL(url);
         }
       });

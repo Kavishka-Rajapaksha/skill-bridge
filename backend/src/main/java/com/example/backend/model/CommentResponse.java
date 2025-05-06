@@ -1,20 +1,27 @@
 package com.example.backend.model;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 
-@Document(collection = "comments")
-public class Comment {
-    @Id
+public class CommentResponse {
     private String id;
     private String userId;
     private String postId;
     private String content;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String userName;
+    private String userProfilePicture;
 
-    // Getters and Setters
+    public CommentResponse(Comment comment) {
+        this.id = comment.getId();
+        this.userId = comment.getUserId();
+        this.postId = comment.getPostId();
+        this.content = comment.getContent();
+        this.createdAt = comment.getCreatedAt();
+        this.updatedAt = comment.getUpdatedAt();
+    }
+
+    // Getters and setters
     public String getId() {
         return id;
     }
@@ -61,5 +68,21 @@ public class Comment {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getUserProfilePicture() {
+        return userProfilePicture;
+    }
+
+    public void setUserProfilePicture(String userProfilePicture) {
+        this.userProfilePicture = userProfilePicture;
     }
 }

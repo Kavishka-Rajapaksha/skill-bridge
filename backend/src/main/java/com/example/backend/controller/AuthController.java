@@ -39,6 +39,13 @@ public class AuthController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        // Since we're using stateless authentication, we just need to return success
+        // The frontend will handle clearing the local storage
+        return ResponseEntity.ok().build();
+    }
 }
 
 class LoginRequest {

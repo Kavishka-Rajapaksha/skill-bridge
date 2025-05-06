@@ -23,11 +23,14 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Service
 public class PostService {
 
+    private static final Logger logger = Logger.getLogger(PostService.class.getName());
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final MongoTemplate mongoTemplate;
@@ -52,20 +55,62 @@ public class PostService {
     }
 
     private User getUserDetails(String userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (userId == null) {
+            logger.warning("Null userId provided");
+            return createFallbackUser("unknown");
+        }
+
+        try {
+            return userRepository.findById(userId)
+                    .orElseGet(() -> {
+                        logger.warning("User not found for ID: " + userId);
+                        return createFallbackUser(userId);
+                    });
+        } catch (Exception e) {
+            logger.warning("Error fetching user with ID " + userId + ": " + e.getMessage());
+            return createFallbackUser(userId);
+        }
+    }
+
+    private User createFallbackUser(String userId) {
+        User fallbackUser = new User();
+        fallbackUser.setId(userId);
+        fallbackUser.setFirstName("Unknown");
+        fallbackUser.setLastName("User");
+        fallbackUser.setProfilePicture(null);
+        return fallbackUser;
     }
 
     private PostResponse convertToPostResponse(Post post) {
-        PostResponse response = new PostResponse(post);
-        User user = getUserDetails(post.getUserId());
-        response.setUserName(user.getFirstName() + " " + user.getLastName());
-        response.setUserProfilePicture(user.getProfilePicture());
-        return response;
+        try {
+            PostResponse response = new PostResponse(post);
+
+            try {
+                User user = getUserDetails(post.getUserId());
+                response.setUserName(user.getFirstName() + " " + user.getLastName());
+                response.setUserProfilePicture(user.getProfilePicture());
+            } catch (Exception e) {
+                logger.warning("Error getting user details for post " + post.getId() + ": " + e.getMessage());
+                response.setUserName("Unknown User");
+                response.setUserProfilePicture(null);
+            }
+
+            return response;
+        } catch (Exception e) {
+            logger.severe("Error converting post to response for post ID: " + post.getId() + " - " + e.getMessage());
+            // Return a minimal response to avoid breaking the list
+            PostResponse fallbackResponse = new PostResponse();
+            fallbackResponse.setId(post.getId());
+            fallbackResponse.setUserId(post.getUserId());
+            fallbackResponse.setUserName("Unknown User");
+            fallbackResponse.setContent(post.getContent());
+            fallbackResponse.setCreatedAt(post.getCreatedAt());
+            return fallbackResponse;
+        }
     }
 
     public PostResponse createPost(String userId, String content, List<MultipartFile> images, MultipartFile video) {
-        if ((video == null && (images == null || images.isEmpty())) && content.isEmpty()) {
+        if ((video == null && (images == null || images.isEmpty())) && (content == null || content.isEmpty())) {
             throw new IllegalArgumentException("Post must have content, images, or a video");
         }
 
@@ -78,11 +123,11 @@ public class PostService {
         List<String> mediaIds = new ArrayList<>();
 
         try {
-            // Ensure upload directory exists - use direct path to backenduploads
+            // Ensure upload directory exists
             Path uploadsPath = Paths.get("backend", "uploads");
             if (!Files.exists(uploadsPath)) {
                 Files.createDirectories(uploadsPath);
-                System.out.println("Created uploads directory at: " + uploadsPath.toAbsolutePath());
+                logger.info("Created uploads directory at: " + uploadsPath.toAbsolutePath());
             }
 
             // Handle video upload
@@ -90,9 +135,7 @@ public class PostService {
                 validateVideo(video);
                 String videoId = saveMedia(video, "video");
                 mediaIds.add(videoId);
-                post.setVideoUrl("/api/media/" + videoId); // URL for retrieval
-
-                // Save to local storage
+                post.setVideoUrl("/api/media/" + videoId);
                 saveToLocalStorage(video, videoId);
             }
 
@@ -104,8 +147,6 @@ public class PostService {
                     }
                     String imageId = saveMedia(image, "image");
                     mediaIds.add(imageId);
-
-                    // Save to local storage
                     saveToLocalStorage(image, imageId);
                 }
                 post.setImageUrls(mediaIds.stream()
@@ -113,21 +154,20 @@ public class PostService {
                         .collect(Collectors.toList()));
             }
 
-            post.setMediaIds(mediaIds); // Store GridFS IDs
+            post.setMediaIds(mediaIds);
             Post savedPost = postRepository.save(post);
             return convertToPostResponse(savedPost);
         } catch (IOException e) {
+            logger.severe("Failed to save media: " + e.getMessage());
             throw new RuntimeException("Failed to save media: " + e.getMessage());
         }
     }
 
     private void saveToLocalStorage(MultipartFile file, String mediaId) throws IOException {
-        // Use direct absolute path to D:\Learn_Book\backend uploads folder
         Path uploadsPath = Paths.get("D:", "Learn_Book", "backend", "uploads");
-        Files.createDirectories(uploadsPath); // Ensure directory exists
-
+        Files.createDirectories(uploadsPath);
         Path filePath = uploadsPath.resolve(mediaId);
-        System.out.println("Saving file to: " + filePath);
+        logger.info("Saving file to: " + filePath);
 
         try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
             fos.write(file.getBytes());
@@ -142,14 +182,12 @@ public class PostService {
         if (video.getSize() > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
             throw new IllegalArgumentException("Video size must be less than " + MAX_VIDEO_SIZE_MB + "MB");
         }
-        // Note: Duration validation requires FFmpeg or external library.
-        // For simplicity, assuming frontend enforces 30s limit.
-        // If needed, reintroduce JAVE or use FFmpeg CLI via ProcessBuilder.
     }
 
     private String saveMedia(MultipartFile file, String type) throws IOException {
         GridFSUploadOptions options = new GridFSUploadOptions()
-                .metadata(new org.bson.Document("type", type));
+                .metadata(new org.bson.Document("type", type)
+                        .append("contentType", file.getContentType()));
         ObjectId fileId = gridFSBucket.uploadFromStream(
                 file.getOriginalFilename() != null ? file.getOriginalFilename() : "media_" + type,
                 file.getInputStream(),
@@ -158,17 +196,27 @@ public class PostService {
     }
 
     public List<PostResponse> getAllPosts() {
-        List<Post> posts = postRepository.findAllByOrderByCreatedAtDesc();
-        return posts.stream()
-                .map(this::convertToPostResponse)
-                .collect(Collectors.toList());
+        try {
+            List<Post> posts = postRepository.findAllByOrderByCreatedAtDesc();
+            return posts.stream()
+                    .map(this::convertToPostResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.severe("Error fetching all posts: " + e.getMessage());
+            throw new RuntimeException("Failed to fetch posts: " + e.getMessage());
+        }
     }
 
     public List<PostResponse> getUserPosts(String userId) {
-        List<Post> posts = postRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        return posts.stream()
-                .map(this::convertToPostResponse)
-                .collect(Collectors.toList());
+        try {
+            List<Post> posts = postRepository.findByUserIdOrderByCreatedAtDesc(userId);
+            return posts.stream()
+                    .map(this::convertToPostResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.severe("Error fetching posts for user ID: " + userId + " - " + e.getMessage());
+            throw new RuntimeException("Failed to fetch user posts: " + e.getMessage());
+        }
     }
 
     public void deletePost(String postId, String userId) {
@@ -179,21 +227,17 @@ public class PostService {
             throw new IllegalArgumentException("You can only delete your own posts");
         }
 
-        // Delete associated media from GridFS and local storage
         if (post.getMediaIds() != null) {
             for (String mediaId : post.getMediaIds()) {
                 try {
-                    // Delete from GridFS
                     gridFSBucket.delete(new ObjectId(mediaId));
-
-                    // Delete from local storage - use absolute path
                     Path mediaPath = Paths.get("D:", "Learn_Book", "backend", "uploads", mediaId);
                     if (Files.exists(mediaPath)) {
                         Files.delete(mediaPath);
-                        System.out.println("Deleted file: " + mediaPath);
+                        logger.info("Deleted file: " + mediaPath);
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to delete media: " + mediaId + " - " + e.getMessage());
+                    logger.severe("Failed to delete media: " + mediaId + " - " + e.getMessage());
                 }
             }
         }
@@ -214,35 +258,28 @@ public class PostService {
 
         try {
             if (images != null && !images.isEmpty()) {
-                // Delete old media
                 if (!mediaIds.isEmpty()) {
                     for (String mediaId : mediaIds) {
                         try {
-                            // Delete from GridFS
                             gridFSBucket.delete(new ObjectId(mediaId));
-
-                            // Delete from local storage - use absolute path
                             Path mediaPath = Paths.get("D:", "Learn_Book", "backend", "uploads", mediaId);
                             if (Files.exists(mediaPath)) {
                                 Files.delete(mediaPath);
-                                System.out.println("Deleted file during update: " + mediaPath);
+                                logger.info("Deleted file during update: " + mediaPath);
                             }
                         } catch (Exception e) {
-                            System.err.println("Failed to delete old media: " + mediaId + " - " + e.getMessage());
+                            logger.severe("Failed to delete old media: " + mediaId + " - " + e.getMessage());
                         }
                     }
                     mediaIds.clear();
                 }
 
-                // Save new images
                 for (MultipartFile image : images) {
                     if (!image.getContentType().startsWith("image/")) {
                         throw new IllegalArgumentException("Only image files are supported");
                     }
                     String imageId = saveMedia(image, "image");
                     mediaIds.add(imageId);
-
-                    // Save to local storage
                     saveToLocalStorage(image, imageId);
                 }
                 post.setImageUrls(mediaIds.stream()
@@ -254,6 +291,7 @@ public class PostService {
             Post updatedPost = postRepository.save(post);
             return convertToPostResponse(updatedPost);
         } catch (IOException e) {
+            logger.severe("Failed to update media: " + e.getMessage());
             throw new RuntimeException("Failed to update media: " + e.getMessage());
         }
     }

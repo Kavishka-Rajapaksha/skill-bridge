@@ -5,7 +5,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Document(collection = "posts")
 public class Post {
@@ -19,8 +21,10 @@ public class Post {
     private int likes = 0;
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt = LocalDateTime.now();
+    private Map<String, Integer> reactionCounts = new HashMap<>();
 
     public Post() {
+        this.reactionCounts = new HashMap<>();
     }
 
     // Constructor for PostResponse
@@ -35,6 +39,7 @@ public class Post {
         this.likes = likes;
         this.comments = comments != null ? comments : new ArrayList<>();
         this.createdAt = createdAt;
+        this.reactionCounts = new HashMap<>();
     }
 
     // Getters and setters
@@ -108,5 +113,13 @@ public class Post {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Map<String, Integer> getReactionCounts() {
+        return reactionCounts;
+    }
+
+    public void setReactionCounts(Map<String, Integer> reactionCounts) {
+        this.reactionCounts = reactionCounts != null ? reactionCounts : new HashMap<>();
     }
 }
