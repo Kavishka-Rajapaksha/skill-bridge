@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import CreatePost from "../components/CreatePost";
 import Post from "../components/Post";
+import Header from "../components/Header";
 import axiosInstance from "../utils/axios";
 import { useNavigate } from "react-router-dom";
 
@@ -72,6 +73,7 @@ function Home() {
 
   return (
     <>
+      <Header user={user} />
       <div className="max-w-2xl mx-auto py-8 px-4">
         <CreatePost onPostCreated={handlePostCreated} />
         {posts.map((post) => (

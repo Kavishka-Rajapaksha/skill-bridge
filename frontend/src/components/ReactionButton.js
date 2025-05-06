@@ -93,9 +93,8 @@ function ReactionButton({ postId, userId, onReactionChange }) {
         onClick={() => setShowReactions(!showReactions)}
       >
         <span>{currentReaction && reactions[currentReaction].emoji}</span>
-        <span className="text-sm">{currentReaction ? "Unlike" : "Like"}</span>
         <span className="text-sm text-gray-500">
-          {reactionStats.total > 0 && `(${reactionStats.total})`}
+          {reactionStats.total > 0 && `${reactionStats.total}`}
         </span>
       </button>
 

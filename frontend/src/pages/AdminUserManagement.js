@@ -351,7 +351,7 @@ function AdminUserManagement() {
 
   return (
     <>
-      
+      <Header user={user} />
       <div className="flex">
         {/* Sidebar - Same as in AdminDashboard */}
         <div className={`bg-gray-800 text-white w-64 min-h-screen flex-shrink-0 ${sidebarOpen ? 'block' : 'hidden'} md:block`}>

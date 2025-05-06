@@ -14,10 +14,6 @@ import AdminAddUser from "./pages/AdminAddUser";
 import AdminBlockedUsers from "./pages/AdminBlockedUsers";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Groups from "./pages/Groups";
-import GroupDetail from "./pages/GroupDetail";
-import Header from "./components/Header"; // Import the Header component
-import GroupManagement from "./components/GroupManagement"; // Import GroupManagement component
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -34,23 +30,13 @@ function App() {
     return children;
   };
 
-  // Create a user route that doesn't immediately redirect
-  const UserAwareRoute = ({ children }) => {
-    // This doesn't force a redirect - component will handle display accordingly
-    return children;
-  };
-
   return (
     <AuthProvider>
       <Router>
-        {/* Include Header only once here */}
-        <Header />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/groups" element={<UserAwareRoute><GroupManagement /></UserAwareRoute>} />
-          <Route path="/groups/:id" element={<GroupDetail />} />
 
           {/* Admin Routes */}
           <Route
