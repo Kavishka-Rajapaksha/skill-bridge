@@ -4,7 +4,6 @@ import Post from "../components/Post";
 import Header from "../components/Header";
 import axiosInstance from "../utils/axios";
 import { useNavigate } from "react-router-dom";
-import Header from "../components/Header";
 
 function Home() {
   const [posts, setPosts] = useState([]);
@@ -130,7 +129,7 @@ function Home() {
   if (loading) {
     return (
       <>
-        <Header user={user} />
+        
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
@@ -140,7 +139,7 @@ function Home() {
 
   return (
     <>
-      <Header user={user} />
+     
       <div className="max-w-2xl mx-auto py-8 px-4">
         <CreatePost 
           onPostCreated={handlePostCreated} 
