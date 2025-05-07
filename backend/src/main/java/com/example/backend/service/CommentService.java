@@ -50,22 +50,35 @@ public class CommentService {
         return response;
     }
 
-    public CommentResponse createComment(String postId, String userId, String content) {
+    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
+
+        // Validate parent comment if provided
+        if (parentCommentId != null && !parentCommentId.isEmpty()) {
+            commentRepository.findById(parentCommentId)
+                .orElseThrow(() -> new IllegalArgumentException("Parent comment not found"));
+        }
 
         Comment comment = new Comment();
         comment.setPostId(postId);
         comment.setUserId(userId);
         comment.setContent(content);
+        comment.setParentCommentId(parentCommentId); // Set the parent-child relationship
 
         Comment savedComment = commentRepository.save(comment);
 
-        // Update post's comments list
-        post.getComments().add(savedComment.getId());
-        postRepository.save(post);
+        // Update post's comments list (only for parent comments)
+        if (parentCommentId == null || parentCommentId.isEmpty()) {
+            post.getComments().add(savedComment.getId());
+            postRepository.save(post);
+        }
 
         return convertToCommentResponse(savedComment);
+    }
+
+    public CommentResponse createComment(String postId, String userId, String content) {
+        return createComment(postId, userId, content, null);
     }
 
     public CommentResponse updateComment(String commentId, String userId, String content) {
@@ -154,14 +167,20 @@ public class CommentService {
 
     public List<CommentResponse> getPostComments(String postId, int limit) {
         try {
-            return commentRepository.findByPostIdOrderByCreatedAtDesc(postId, PageRequest.of(0, limit))
-                    .getContent()
-                    .stream()
+            // Replace findByPostId with an existing repository method
+            List<Comment> allComments = commentRepository.findByPostIdOrderByCreatedAtDesc(
+                    postId, 
+                    PageRequest.of(0, Math.max(limit, 1000)) // Ensure we get enough comments for hierarchical structuring
+            ).getContent();
+            
+            // Convert to response objects
+            return allComments.stream()
                     .map(this::convertToCommentResponse)
                     .collect(Collectors.toList());
         } catch (Exception e) {
             // Log error and return empty list
-            System.err.println("Error fetching limited comments for post " + postId + ": " + e.getMessage());
+            System.err.println("Error fetching comments for post " + postId + ": " + e.getMessage());
+            e.printStackTrace(); // Add stack trace for better debugging
             return Collections.emptyList();
         }
     }

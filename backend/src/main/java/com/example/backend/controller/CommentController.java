@@ -22,9 +22,10 @@ public class CommentController {
     public ResponseEntity<?> createComment(
             @RequestParam String postId,
             @RequestParam String userId,
-            @RequestParam String content) {
+            @RequestParam String content,
+            @RequestParam(required = false) String parentCommentId) {
         try {
-            CommentResponse comment = commentService.createComment(postId, userId, content);
+            CommentResponse comment = commentService.createComment(postId, userId, content, parentCommentId);
             return ResponseEntity.ok(comment);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -60,7 +61,9 @@ public class CommentController {
     @GetMapping("/post/{postId}")
     public ResponseEntity<List<CommentResponse>> getPostComments(
             @PathVariable String postId,
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(defaultValue = "true") boolean includeReplies,
+            @RequestParam(defaultValue = "false") boolean hierarchical) {
         return ResponseEntity.ok(commentService.getPostComments(postId, limit));
     }
 }

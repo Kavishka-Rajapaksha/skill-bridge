@@ -202,9 +202,13 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   };
 
   const handleCommentClick = () => {
-    setShowComments(!showComments);
-    if (!showComments) {
+    const newShowState = !showComments;
+    setShowComments(newShowState);
+    
+    // Always show comment input when showing comments
+    if (newShowState) {
       setShowCommentInput(true);
+      refreshPostData(); // Refresh post data to get latest comments
     }
   };
 
@@ -214,6 +218,22 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
 
   const handleReportSuccess = () => {
     console.log("Report submitted successfully");
+  };
+
+  const formatContent = (content) => {
+    if (!content) return '';
+    
+    const formattedContent = content
+      // Format code blocks with ```
+      .replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre"><code>$1</code></pre>')
+      // Format inline code with `
+      .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+      // Format bold text with **
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Format italic text with *
+      .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    return formattedContent;
   };
 
   return (
@@ -400,7 +420,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         ) : (
           <>
             {/* Post Text Content */}
-            <p className="text-gray-800 mb-4 leading-relaxed whitespace-pre-line">{post.content}</p>
+            <div 
+              className="text-gray-800 mb-4 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: formatContent(post.content).split('\n').join('<br />') }}
+            />
 
             {/* Post Media Content */}
             <div className="space-y-4 mt-3">
@@ -597,7 +620,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
             postOwnerId={post.userId}
             showInput={showCommentInput}
             onCommentCountChange={handleCommentCountChange}
-            key={`comments-${lastRefreshed}`}
+            key={`comments-${post.id}-${showComments}-${lastRefreshed}`}
           />
         </div>
       )}

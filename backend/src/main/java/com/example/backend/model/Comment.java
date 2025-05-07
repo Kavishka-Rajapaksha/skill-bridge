@@ -14,6 +14,7 @@ public class Comment {
     private String content;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String parentCommentId; // Field to establish parent-child relationship
 
     public Comment() {
         this.createdAt = LocalDateTime.now();
@@ -67,5 +68,13 @@ public class Comment {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getParentCommentId() {
+        return parentCommentId;
+    }
+
+    public void setParentCommentId(String parentCommentId) {
+        this.parentCommentId = parentCommentId;
     }
 }
