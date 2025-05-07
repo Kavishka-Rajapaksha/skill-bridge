@@ -3,8 +3,6 @@ package com.example.backend.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Document(collection = "groups")
 public class Group {
@@ -12,20 +10,15 @@ public class Group {
     private String id;
     private String name;
     private String description;
+    private String coverImageUrl;
     private String createdBy;
-    private List<String> members = new ArrayList<>();
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
 
     public Group() {
+        this.createdAt = LocalDateTime.now();
     }
 
-    public Group(String name, String description, String createdBy) {
-        this.name = name;
-        this.description = description;
-        this.createdBy = createdBy;
-        this.members.add(createdBy);
-    }
-
+    // Getters and Setters
     public String getId() {
         return id;
     }
@@ -50,20 +43,20 @@ public class Group {
         this.description = description;
     }
 
+    public String getCoverImageUrl() {
+        return coverImageUrl;
+    }
+
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
+    }
+
     public String getCreatedBy() {
         return createdBy;
     }
 
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
-    }
-
-    public List<String> getMembers() {
-        return members;
-    }
-
-    public void setMembers(List<String> members) {
-        this.members = members;
     }
 
     public LocalDateTime getCreatedAt() {
