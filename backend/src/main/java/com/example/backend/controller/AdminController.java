@@ -1,5 +1,4 @@
 package com.example.backend.controller;
-
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.AdminService;
