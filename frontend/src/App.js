@@ -12,12 +12,14 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import AdminAddUser from "./pages/AdminAddUser";
 import AdminBlockedUsers from "./pages/AdminBlockedUsers";
+import GroupCreate from "./pages/GroupCreate";
+import GroupsPage from "./pages/GroupsPage";
+import ReportedPosts from "./pages/admin/ReportedPosts"; // Import the ReportedPosts page
+import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 import { AuthProvider } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Groups from "./pages/Groups";
-import GroupDetail from "./pages/GroupDetail";
+import PrivateRoute from "./components/PrivateRoute"; // Update this line
 import Header from "./components/Header"; // Import the Header component
-import GroupManagement from "./components/GroupManagement"; // Import GroupManagement component
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -42,15 +44,13 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         {/* Include Header only once here */}
         <Header />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/groups" element={<UserAwareRoute><GroupManagement /></UserAwareRoute>} />
-          <Route path="/groups/:id" element={<GroupDetail />} />
 
           {/* Admin Routes */}
           <Route
@@ -83,6 +83,63 @@ function App() {
               <AdminRoute>
                 <AdminBlockedUsers />
               </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              <AdminRoute>
+                <ReportedPosts />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/groups/create"
+            element={
+              <PrivateRoute>
+                <GroupCreate />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/groups"
+            element={
+              <PrivateRoute>
+                <GroupsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/groups/:type"
+            element={
+              <PrivateRoute>
+                <GroupsPage />
+              </PrivateRoute>
+            }
+          />
+          {/* Profile Routes */}
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile/:userId"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/edit-profile"
+            element={
+              <PrivateRoute>
+                <EditProfile />
+              </PrivateRoute>
             }
           />
           {/* Add other routes as needed */}
