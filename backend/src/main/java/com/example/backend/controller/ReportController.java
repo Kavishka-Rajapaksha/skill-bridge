@@ -124,6 +124,23 @@ public class ReportController {
     }
     
     /**
+     * Get recent reports (admin only) - limited to specified number
+     */
+    @GetMapping("/recent")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getRecentReports(@RequestParam(defaultValue = "5") int limit) {
+        try {
+            logger.info("Getting recent reports, limit: " + limit);
+            List<Report> reports = reportService.getRecentReports(limit);
+            return ResponseEntity.ok(reports);
+        } catch (Exception e) {
+            logger.severe("Error getting recent reports: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("An error occurred while retrieving recent reports: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Update report status (admin only)
      */
     @PutMapping("/{id}/status")
