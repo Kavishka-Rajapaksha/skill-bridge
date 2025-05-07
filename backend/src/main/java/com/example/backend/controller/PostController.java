@@ -96,14 +96,27 @@ public class PostController {
         return ResponseEntity.ok(postService.getUserPosts(userId));
     }
 
+    @GetMapping("/posts/{postId}")
+    public ResponseEntity<?> getPostById(@PathVariable String postId) {
+        try {
+            PostResponse post = postService.getPostById(postId);
+            return ResponseEntity.ok(post);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @DeleteMapping("/posts/{postId}")
     public ResponseEntity<?> deletePost(
             @PathVariable String postId,
-            @RequestParam String userId) {
+            @RequestParam String userId,
+            @RequestParam(required = false, defaultValue = "false") boolean isAdmin) {
         try {
-            postService.deletePost(postId, userId);
+            logger.info("Deleting post: " + postId + ", user: " + userId + ", isAdmin: " + isAdmin);
+            postService.deletePost(postId, userId, isAdmin);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
+            logger.warning("Error deleting post: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
