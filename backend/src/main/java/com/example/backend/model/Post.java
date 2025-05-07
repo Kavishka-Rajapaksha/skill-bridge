@@ -22,6 +22,7 @@ public class Post {
     private int likes = 0;
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt = LocalDateTime.now();
+    private Map<String, Integer> reactionCounts = new HashMap<>();
 
     public Post() {
     }
@@ -29,7 +30,7 @@ public class Post {
     // Constructor for PostResponse
     public Post(String id, String userId, String content, String videoUrl, List<String> imageUrls,
             List<String> mediaIds, Map<String, String> mediaTypes, int likes, List<String> comments,
-            LocalDateTime createdAt) {
+            LocalDateTime createdAt, Map<String, Integer> reactionCounts) {
         this.id = id;
         this.userId = userId;
         this.content = content;
@@ -40,6 +41,7 @@ public class Post {
         this.likes = likes;
         this.comments = comments != null ? comments : new ArrayList<>();
         this.createdAt = createdAt;
+        this.reactionCounts = reactionCounts != null ? reactionCounts : new HashMap<>();
     }
 
     // Getters and setters
@@ -121,6 +123,27 @@ public class Post {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Map<String, Integer> getReactionCounts() {
+        return reactionCounts;
+    }
+
+    public void setReactionCounts(Map<String, Integer> reactionCounts) {
+        this.reactionCounts = reactionCounts;
+    }
+
+    // Helper method to add or update a specific reaction count
+    public void addReactionCount(String reactionType, int count) {
+        this.reactionCounts.put(reactionType, 
+            this.reactionCounts.getOrDefault(reactionType, 0) + count);
+    }
+
+    // Helper method to get total reaction count
+    public int getTotalReactionCount() {
+        return this.reactionCounts.values().stream()
+            .mapToInt(Integer::intValue)
+            .sum();
     }
 
     // Helper method to add media type info
