@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,15 +45,21 @@ public class UserService {
         return user;
     }
 
-    public User updateUserProfile(String userId, String firstName, String lastName, String bio, MultipartFile profilePicture) throws IOException {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-
-        if (firstName != null && !firstName.isEmpty()) {
+    public User updateUserProfile(String userId, String firstName, String lastName, String bio, MultipartFile profilePicture) throws Exception {
+        Optional<User> userOptional = userRepository.findById(userId);
+        
+        if (!userOptional.isPresent()) {
+            throw new Exception("User not found");
+        }
+        
+        User user = userOptional.get();
+        
+        // Handle null values by providing empty strings as defaults
+        if (firstName != null) {
             user.setFirstName(firstName);
         }
         
-        if (lastName != null && !lastName.isEmpty()) {
+        if (lastName != null) {
             user.setLastName(lastName);
         }
         
@@ -60,8 +67,9 @@ public class UserService {
             user.setBio(bio);
         }
         
+        // Handle profile picture upload
         if (profilePicture != null && !profilePicture.isEmpty()) {
-            // Save profile picture to GridFS
+            // Existing profile picture upload logic...
             if (!profilePicture.getContentType().startsWith("image/")) {
                 throw new IllegalArgumentException("Only image files are allowed for profile picture");
             }

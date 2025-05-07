@@ -48,6 +48,11 @@ public class AuthController {
         try {
             boolean isRegistration = request.getIsRegistration() != null && request.getIsRegistration();
             User user = googleAuthService.authenticateGoogleUser(request.getIdToken(), isRegistration);
+
+            if (user.getFirstName() == null) user.setFirstName("");
+            if (user.getLastName() == null) user.setLastName("");
+            if (user.getBio() == null) user.setBio("");
+
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             e.printStackTrace();

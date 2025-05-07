@@ -28,7 +28,7 @@ function EditProfile() {
           return;
         }
 
-        // Use current user data from localStorage to avoid API call failure
+        // Initialize form with default values to avoid undefined values
         setFormData({
           firstName: user.firstName || "",
           lastName: user.lastName || "",
@@ -44,6 +44,7 @@ function EditProfile() {
           const response = await axiosInstance.get(`/api/users/${user.id}`);
           const userData = response.data;
 
+          // Ensure we have values and not null
           setFormData({
             firstName: userData.firstName || "",
             lastName: userData.lastName || "",
@@ -59,6 +60,18 @@ function EditProfile() {
             apiError
           );
           // Continue with localStorage data, no need to show error to user
+          // For Google users, make sure we have data even if it's empty strings
+          if (
+            user.email &&
+            (user.firstName === null || user.firstName === undefined)
+          ) {
+            setFormData((prevData) => ({
+              ...prevData,
+              firstName: user.email.split("@")[0] || "", // Use email username as default first name
+              lastName: "",
+              bio: "",
+            }));
+          }
         }
       } catch (error) {
         console.error("Error loading user data:", error);
@@ -109,10 +122,14 @@ function EditProfile() {
       // Create form data
       const data = new FormData();
 
-      if (formData.firstName) data.append("firstName", formData.firstName);
-      if (formData.lastName) data.append("lastName", formData.lastName);
-      if (formData.bio !== undefined) data.append("bio", formData.bio);
-      if (profilePicture) data.append("profilePicture", profilePicture);
+      // Make sure to send empty strings rather than undefined
+      data.append("firstName", formData.firstName || "");
+      data.append("lastName", formData.lastName || "");
+      data.append("bio", formData.bio || "");
+
+      if (profilePicture) {
+        data.append("profilePicture", profilePicture);
+      }
 
       // Update profile
       const response = await axiosInstance.put(`/api/users/${user.id}`, data, {
@@ -121,13 +138,13 @@ function EditProfile() {
         },
       });
 
-      // Update user in localStorage
+      // Update user in localStorage with proper defaults for any missing fields
       const updatedUser = {
         ...user,
-        firstName: response.data.firstName,
-        lastName: response.data.lastName,
-        bio: response.data.bio,
-        profilePicture: response.data.profilePicture,
+        firstName: response.data.firstName || "",
+        lastName: response.data.lastName || "",
+        bio: response.data.bio || "",
+        profilePicture: response.data.profilePicture || user.profilePicture,
       };
 
       localStorage.setItem("user", JSON.stringify(updatedUser));

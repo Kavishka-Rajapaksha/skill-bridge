@@ -122,25 +122,23 @@ function Profile() {
               {user.profilePicture ? (
                 <img
                   src={user.profilePicture}
-                  alt={`${user.firstName} ${user.lastName}`}
+                  alt={`${user.firstName || ""} ${user.lastName || ""}`}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.onerror = null;
-                    e.target.src =
-                      "https://via.placeholder.com/150?text=" +
-                      user.firstName?.charAt(0);
+                    e.target.src = `https://via.placeholder.com/150?text=${(user.firstName || user.email || "U").charAt(0)}`;
                   }}
                 />
               ) : (
                 <span className="text-4xl font-semibold text-gray-600">
-                  {user.firstName?.charAt(0)}
+                  {(user.firstName || user.email || "U").charAt(0)}
                 </span>
               )}
             </div>
 
             <div className="text-center md:text-left">
               <h1 className="text-2xl font-bold">
-                {user.firstName} {user.lastName}
+                {user.firstName || user.email?.split("@")[0]} {user.lastName || ""}
               </h1>
               <p className="text-gray-600 mt-1">{user.email}</p>
 
