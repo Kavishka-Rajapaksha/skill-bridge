@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { 
   Box, 
   Button, 
@@ -18,9 +18,11 @@ import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { AuthContext } from "../context/AuthContext"; // Import AuthContext
 
 function Register() {
   const navigate = useNavigate();
+  const { setAuth } = useContext(AuthContext); // Add AuthContext
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -76,6 +78,98 @@ function Register() {
       setLoading(false);
     }
   };
+
+  // Update Google callback handler
+  const handleGoogleCallback = useCallback(async (response) => {
+    console.log("Google response received:", response);
+    setLoading(true);
+    try {
+      if (!response.credential) {
+        throw new Error("No credential received from Google");
+      }
+      
+      // Send the ID token to your backend with isRegistration flag
+      const result = await axiosInstance.post("/api/auth/google", {
+        idToken: response.credential,
+        isRegistration: true
+      });
+      
+      localStorage.setItem("user", JSON.stringify(result.data));
+      setAuth({ isAuthenticated: true, user: result.data });
+      navigate("/");
+    } catch (err) {
+      console.error("Google auth error:", err);
+      const errorMessage = err.response?.data || err.message || "Google authentication failed";
+      setError(typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate, setAuth]);
+
+  // Add useEffect for Google Sign-In
+  useEffect(() => {
+    // Clean up any existing Google script to prevent conflicts
+    const existingScript = document.getElementById("google-signin-script");
+    if (existingScript) {
+      existingScript.remove();
+    }
+    
+    // Load Google's OAuth script
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.id = "google-signin-script";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+
+    script.onload = () => {
+      // Add a slight delay to ensure Google's API is fully loaded
+      setTimeout(() => {
+        if (window.google) {
+          try {
+            window.google?.accounts.id.initialize({
+              client_id: "793547860619-hccacc9oqnrjiphbve9hkvbef24o6sji.apps.googleusercontent.com",
+              callback: handleGoogleCallback,
+              auto_select: false,
+              cancel_on_tap_outside: true,
+              context: 'signup', // Changed to signup for registration context
+              ux_mode: 'popup'
+            });
+  
+            window.google.accounts.id.renderButton(
+              document.getElementById("googleSignUpButton"),
+              { 
+                theme: "outline", 
+                size: "large", 
+                width: "100%",
+                text: "signup_with", // Changed to signup_with
+                shape: "rectangular"
+              }
+            );
+          } catch (err) {
+            console.error("Error initializing Google Sign-Up:", err);
+            setError("Failed to initialize Google Sign-Up. Please try again later.");
+          }
+        } else {
+          console.error("Google API failed to load");
+          setError("Google Sign-Up is unavailable. Please try again later.");
+        }
+      }, 300);
+    };
+
+    script.onerror = () => {
+      console.error("Failed to load Google Sign-In script");
+      setError("Google Sign-Up is unavailable. Please try again later.");
+    };
+
+    return () => {
+      // Clean up script when component unmounts
+      const scriptToRemove = document.getElementById("google-signin-script");
+      if (scriptToRemove) {
+        scriptToRemove.remove();
+      }
+    };
+  }, [handleGoogleCallback]);
 
   return (
     <Box
@@ -134,6 +228,31 @@ function Register() {
               {error}
             </Typography>
           )}
+
+          {/* Add Google Sign-Up Option First for Better UX */}
+          <Box 
+            id="googleSignUpButton" 
+            sx={{ 
+              width: "100%", 
+              mb: 3,
+              '& > div': {
+                borderRadius: '10px !important',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1) !important',
+                width: '100% !important',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15) !important',
+                  transform: 'translateY(-1px)'
+                }
+              }
+            }}
+          />
+          
+          <Divider sx={{ my: 2 }}>
+            <Typography variant="body2" color="textSecondary">
+              OR
+            </Typography>
+          </Divider>
           
           <form onSubmit={handleSubmit}>
             <TextField
@@ -272,8 +391,6 @@ function Register() {
                 {loading ? "Creating Account..." : "Register"}
               </Typography>
             </Button>
-            
-            <Divider sx={{ my: 2 }} />
             
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2" color="textSecondary">

@@ -38,13 +38,14 @@ function Login() {
         throw new Error("No credential received from Google");
       }
       
-      // Send the ID token to your backend
+      // Send the ID token to your backend with isRegistration = false
       const result = await axiosInstance.post("/api/auth/google", {
-        idToken: response.credential
+        idToken: response.credential,
+        isRegistration: false
       });
       
       localStorage.setItem("user", JSON.stringify(result.data));
-      setAuth({ isAuthenticated: true, user: result.data }); // Update auth context
+      setAuth({ isAuthenticated: true, user: result.data });
       navigate("/");
     } catch (err) {
       console.error("Google auth error:", err);
