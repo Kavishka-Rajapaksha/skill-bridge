@@ -4,7 +4,8 @@ import com.example.backend.model.Group;
 import com.example.backend.repository.GroupRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
 import java.util.List;
 
 @Service
@@ -13,63 +14,65 @@ public class GroupService {
     @Autowired
     private GroupRepository groupRepository;
 
-    public List<Group> getAllGroups() {
-        return groupRepository.findAll();
-    }
+    @Autowired
+    private FileStorageService fileStorageService;
 
-    public Group getGroupById(String id) {
-        return groupRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
-    }
-
-    public Group createGroup(Group group) {
-        return groupRepository.save(group);
-    }
-
-    public Group updateGroup(String id, Group groupDetails) {
-        Group group = getGroupById(id);
-
-        // Only allow group owner to update
-        if (!group.getCreatedBy().equals(groupDetails.getCreatedBy())) {
-            throw new RuntimeException("Only group owner can update the group");
+    public Group createGroup(String name, String description, String userId, MultipartFile coverImage)
+            throws IOException {
+        if (groupRepository.existsByName(name)) {
+            throw new IllegalArgumentException("Group name already exists");
         }
 
-        group.setName(groupDetails.getName());
-        group.setDescription(groupDetails.getDescription());
+        Group group = new Group();
+        group.setName(name);
+        group.setDescription(description);
+        group.setCreatedBy(userId);
+
+        if (coverImage != null && !coverImage.isEmpty()) {
+            // This will now return a full URL
+            String imageUrl = fileStorageService.storeFile(coverImage);
+            group.setCoverImageUrl(imageUrl);
+        }
 
         return groupRepository.save(group);
     }
 
-    public void deleteGroup(String id, String userId) {
-        Group group = getGroupById(id);
+    public Group updateGroup(String groupId, String userId, String name, String description) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found"));
 
-        // Only allow group owner to delete
+        // Verify ownership
         if (!group.getCreatedBy().equals(userId)) {
-            throw new RuntimeException("Only group owner can delete the group");
+            throw new IllegalArgumentException("You don't have permission to update this group");
+        }
+
+        // Check if new name already exists (skip if name hasn't changed)
+        if (!group.getName().equals(name) && groupRepository.existsByName(name)) {
+            throw new IllegalArgumentException("Group name already exists");
+        }
+
+        group.setName(name);
+        group.setDescription(description);
+        return groupRepository.save(group);
+    }
+
+    public void deleteGroup(String groupId, String userId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found"));
+
+        // Verify ownership
+        if (!group.getCreatedBy().equals(userId)) {
+            throw new IllegalArgumentException("You don't have permission to delete this group");
         }
 
         groupRepository.delete(group);
     }
 
-    public Group joinGroup(String groupId, String userId) {
-        Group group = getGroupById(groupId);
-
-        if (!group.getMembers().contains(userId)) {
-            group.getMembers().add(userId);
-            return groupRepository.save(group);
-        }
-        return group;
+    public List<Group> getUserGroups(String userId) {
+        return groupRepository.findByCreatedBy(userId);
     }
 
-    public Group leaveGroup(String groupId, String userId) {
-        Group group = getGroupById(groupId);
-
-        // Don't allow group owner to leave
-        if (group.getCreatedBy().equals(userId)) {
-            throw new RuntimeException("Group owner cannot leave the group");
-        }
-
-        group.getMembers().remove(userId);
-        return groupRepository.save(group);
+    public List<Group> getAllGroups() {
+        return groupRepository.findAll();
     }
 }
