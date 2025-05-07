@@ -12,6 +12,8 @@ public class CommentResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String parentCommentId; // Added to expose the relationship
+    private int likeCount = 0;
+    private boolean userLiked = false;
 
     public CommentResponse(Comment comment) {
         this.id = comment.getId();
@@ -94,5 +96,21 @@ public class CommentResponse {
 
     public void setParentCommentId(String parentCommentId) {
         this.parentCommentId = parentCommentId;
+    }
+
+    public int getLikeCount() {
+        return likeCount;
+    }
+
+    public void setLikeCount(int likeCount) {
+        this.likeCount = likeCount;
+    }
+
+    public boolean isUserLiked() {
+        return userLiked;
+    }
+
+    public void setUserLiked(boolean userLiked) {
+        this.userLiked = userLiked;
     }
 }

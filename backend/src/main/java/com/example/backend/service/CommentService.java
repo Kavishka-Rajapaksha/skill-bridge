@@ -1,9 +1,11 @@
 package com.example.backend.service;
 
 import com.example.backend.model.Comment;
+import com.example.backend.model.CommentReaction;
 import com.example.backend.model.CommentResponse;
 import com.example.backend.model.Post;
 import com.example.backend.model.User;
+import com.example.backend.repository.CommentReactionRepository;
 import com.example.backend.repository.CommentRepository;
 import com.example.backend.repository.PostRepository;
 import com.example.backend.repository.UserRepository;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,17 +26,20 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final CommentReactionRepository commentReactionRepository;
 
     @Autowired
     public CommentService(CommentRepository commentRepository,
             PostRepository postRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            CommentReactionRepository commentReactionRepository) {
         this.commentRepository = commentRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
+        this.commentReactionRepository = commentReactionRepository;
     }
 
-    private CommentResponse convertToCommentResponse(Comment comment) {
+    private CommentResponse convertToCommentResponse(Comment comment, String currentUserId) {
         CommentResponse response = new CommentResponse(comment);
 
         try {
@@ -47,7 +53,25 @@ public class CommentService {
             response.setUserProfilePicture(null);
         }
 
+        // Add reaction information
+        try {
+            int likeCount = commentReactionRepository.countByCommentIdAndReactionType(comment.getId(), "like");
+            response.setLikeCount(likeCount);
+
+            // Check if current user has liked this comment
+            if (currentUserId != null) {
+                boolean userLiked = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId).isPresent();
+                response.setUserLiked(userLiked);
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting reaction data for comment " + comment.getId() + ": " + e.getMessage());
+        }
+
         return response;
+    }
+
+    private CommentResponse convertToCommentResponse(Comment comment) {
+        return convertToCommentResponse(comment, null);
     }
 
     public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
@@ -183,5 +207,55 @@ public class CommentService {
             e.printStackTrace(); // Add stack trace for better debugging
             return Collections.emptyList();
         }
+    }
+
+    public List<CommentResponse> getPostComments(String postId, String currentUserId) {
+        try {
+            return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
+                    .stream()
+                    .map(comment -> convertToCommentResponse(comment, currentUserId))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error fetching comments for post " + postId + ": " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    public List<CommentResponse> getPostComments(String postId, int limit, String currentUserId) {
+        try {
+            List<Comment> allComments = commentRepository.findByPostIdOrderByCreatedAtDesc(
+                    postId, 
+                    PageRequest.of(0, Math.max(limit, 1000))
+            ).getContent();
+            
+            return allComments.stream()
+                    .map(comment -> convertToCommentResponse(comment, currentUserId))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error fetching comments for post " + postId + ": " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    public CommentResponse reactToComment(String commentId, String userId, String reactionType) {
+        // Validate comment exists
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new IllegalArgumentException("Comment not found"));
+
+        // Check if user already reacted to this comment
+        Optional<CommentReaction> existingReaction = commentReactionRepository.findByCommentIdAndUserId(commentId, userId);
+
+        if (existingReaction.isPresent()) {
+            // User already reacted, so remove the reaction (toggle behavior)
+            commentReactionRepository.deleteById(existingReaction.get().getId());
+        } else {
+            // Add new reaction
+            CommentReaction reaction = new CommentReaction(commentId, userId, reactionType);
+            commentReactionRepository.save(reaction);
+        }
+
+        // Return updated comment response
+        return convertToCommentResponse(comment, userId);
     }
 }

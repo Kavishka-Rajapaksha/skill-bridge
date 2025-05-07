@@ -62,8 +62,7 @@ public class CommentController {
     public ResponseEntity<List<CommentResponse>> getPostComments(
             @PathVariable String postId,
             @RequestParam(defaultValue = "100") int limit,
-            @RequestParam(defaultValue = "true") boolean includeReplies,
-            @RequestParam(defaultValue = "false") boolean hierarchical) {
-        return ResponseEntity.ok(commentService.getPostComments(postId, limit));
+            @RequestParam(required = false) String currentUserId) {
+        return ResponseEntity.ok(commentService.getPostComments(postId, limit, currentUserId));
     }
 }

@@ -14,6 +14,7 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
   const [replyContent, setReplyContent] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState({});
+  const [reactingToComment, setReactingToComment] = useState(null);
 
   const user = JSON.parse(localStorage.getItem("user"));
   const isAdmin = user?.role === "ROLE_ADMIN";
@@ -26,29 +27,11 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
     }
   }, [replyToComment]);
 
-  useEffect(() => {
-    const abortController = new AbortController();
-
-    if (postId) {
-      fetchComments();
-    }
-
-    return () => {
-      abortController.abort();
-    };
-  }, [postId]);
-
-  useEffect(() => {
-    if (showInput) {
-      fetchComments();
-    }
-  }, [showInput, postId]);
-
   const fetchComments = async () => {
     try {
       setFetchingComments(true);
       const response = await axiosInstance.get(
-        `/api/comments/post/${postId}?limit=100&includeReplies=true&hierarchical=true`
+        `/api/comments/post/${postId}?limit=100&includeReplies=true&hierarchical=true&currentUserId=${user?.id || ''}`,
       );
 
       if (response.data && Array.isArray(response.data)) {
@@ -76,6 +59,24 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
       setFetchingComments(false);
     }
   };
+
+  useEffect(() => {
+    const abortController = new AbortController();
+
+    if (postId) {
+      fetchComments();
+    }
+
+    return () => {
+      abortController.abort();
+    };
+  }, [postId]);
+
+  useEffect(() => {
+    if (showInput) {
+      fetchComments();
+    }
+  }, [showInput, postId]);
 
   const processCommentsAndReplies = (commentsData) => {
     const parentComments = [];
@@ -275,6 +276,60 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
     }
   };
 
+  const handleReaction = async (commentId, isParentComment = true, parentId = null) => {
+    if (!user) return;
+
+    try {
+      setReactingToComment(commentId);
+      const response = await axiosInstance.post(`/api/comments/${commentId}/react`, null, {
+        params: {
+          userId: user.id,
+          reactionType: 'like'
+        }
+      });
+
+      let updatedComments = [...comments];
+
+      if (isParentComment) {
+        updatedComments = updatedComments.map(comment => {
+          if (comment.id === commentId) {
+            return {
+              ...comment,
+              likeCount: response.data.likeCount,
+              userLiked: response.data.userLiked
+            };
+          }
+          return comment;
+        });
+      } else if (parentId) {
+        updatedComments = updatedComments.map(comment => {
+          if (comment.id === parentId) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply => {
+                if (reply.id === commentId) {
+                  return {
+                    ...reply,
+                    likeCount: response.data.likeCount,
+                    userLiked: response.data.userLiked
+                  };
+                }
+                return reply;
+              })
+            };
+          }
+          return comment;
+        });
+      }
+
+      setComments(updatedComments);
+    } catch (error) {
+      console.error('Error reacting to comment:', error);
+    } finally {
+      setReactingToComment(null);
+    }
+  };
+
   const toggleReplies = (commentId) => {
     setShowRepliesFor((prev) => ({
       ...prev,
@@ -291,6 +346,67 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
+  };
+
+  const LikeButton = ({ comment, onClick, isReply = false, parentId = null }) => {
+    const isLoading = reactingToComment === comment.id;
+    const liked = comment.userLiked || false;
+    const count = comment.likeCount || 0;
+
+    return (
+      <button
+        onClick={() => onClick(comment.id, !isReply, isReply ? parentId : null)}
+        disabled={isLoading}
+        className={`group flex items-center space-x-1 text-sm px-2 py-1 rounded-full transition-all duration-200 ${
+          liked
+            ? 'text-red-500 hover:bg-red-50'
+            : 'text-gray-500 hover:bg-gray-100'
+        }`}
+      >
+        {isLoading ? (
+          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        ) : (
+          <>
+            <div className="relative">
+              <svg
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  liked ? 'scale-110 fill-current' : 'fill-none'
+                }`}
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={liked ? "0" : "2"}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                />
+              </svg>
+
+              {liked && (
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <svg 
+                    className="w-4 h-4 text-red-500 absolute animate-ping opacity-75" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                    />
+                  </svg>
+                </span>
+              )}
+            </div>
+            <span className="font-medium text-xs">
+              {count > 0 ? count : liked ? '1' : 'Like'}
+            </span>
+          </>
+        )}
+      </button>
+    );
   };
 
   const renderReplies = (parentComment) => {
@@ -359,6 +475,10 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
                   ) : (
                     <p className="text-gray-700 text-sm mt-1">{reply.content}</p>
                   )}
+
+                  <div className="mt-2 flex items-center gap-2">
+                    <LikeButton comment={reply} onClick={handleReaction} isReply={true} parentId={parentComment.id} />
+                  </div>
                 </div>
               </div>
 
@@ -655,6 +775,62 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
                               {comment.content}
                             </p>
                           )}
+
+                          <div className="mt-2 flex items-center gap-3">
+                            <LikeButton comment={comment} onClick={handleReaction} />
+
+                            <button
+                              onClick={() => {
+                                toggleReplies(comment.id);
+                                if (!showRepliesFor[comment.id]) {
+                                  setReplyToComment(comment.id);
+                                }
+                              }}
+                              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 py-1 px-2 rounded-md hover:bg-blue-50 transition-colors"
+                            >
+                              {showRepliesFor[comment.id] ? (
+                                <>
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M19 9l-7 7-7-7"
+                                    />
+                                  </svg>
+                                  Hide replies
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M9 5l7 7-7 7"
+                                    />
+                                  </svg>
+                                  {comment.replies.length > 0
+                                    ? `View ${comment.replies.length} ${
+                                        comment.replies.length === 1
+                                          ? "reply"
+                                          : "replies"
+                                      }`
+                                    : "Reply"}
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -770,134 +946,80 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center">
-                      <button
-                        onClick={() => {
-                          toggleReplies(comment.id);
-                          if (!showRepliesFor[comment.id]) {
-                            setReplyToComment(comment.id);
-                          }
-                        }}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 py-1 px-2 rounded-md hover:bg-blue-50 transition-colors"
-                      >
-                        {showRepliesFor[comment.id] ? (
-                          <>
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
-                            Hide replies
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                            {comment.replies.length > 0
-                              ? `View ${comment.replies.length} ${
-                                  comment.replies.length === 1
-                                    ? "reply"
-                                    : "replies"
-                                }`
-                              : "Reply"}
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
+                    {renderReplies(comment)}
 
-                  {renderReplies(comment)}
-
-                  {replyToComment === comment.id &&
-                    !showRepliesFor[comment.id] && (
-                      <div className="pl-12 mt-3">
-                        <form
-                          className="flex items-center space-x-2"
-                          onSubmit={(e) => handleReplySubmit(e, comment.id)}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                            {user.profilePicture ? (
-                              <img
-                                src={user.profilePicture}
-                                alt=""
-                                className="w-full h-full rounded-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-sm font-medium text-blue-500">
-                                {user?.firstName?.charAt(0) || "U"}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex-1 relative">
-                            <input
-                              ref={replyInputRef}
-                              type="text"
-                              value={replyContent}
-                              onChange={(e) => setReplyContent(e.target.value)}
-                              placeholder="Add a reply..."
-                              className="w-full pl-3 pr-16 py-2 bg-gray-100 hover:bg-white focus:bg-white rounded-full text-sm border border-transparent focus:border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all"
-                            />
-                            <button
-                              type="submit"
-                              disabled={
-                                submittingReply || !replyContent.trim()
-                              }
-                              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-blue-500 hover:text-blue-700 disabled:text-gray-400"
-                            >
-                              {submittingReply ? (
-                                <svg
-                                  className="animate-spin h-4 w-4"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                  ></circle>
-                                  <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                  ></path>
-                                </svg>
+                    {replyToComment === comment.id &&
+                      !showRepliesFor[comment.id] && (
+                        <div className="pl-12 mt-3">
+                          <form
+                            className="flex items-center space-x-2"
+                            onSubmit={(e) => handleReplySubmit(e, comment.id)}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              {user.profilePicture ? (
+                                <img
+                                  src={user.profilePicture}
+                                  alt=""
+                                  className="w-full h-full rounded-full object-cover"
+                                />
                               ) : (
-                                <svg
-                                  className="h-5 w-5 transition-transform duration-200 transform rotate-90"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                >
-                                  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11h4a1 1 0 00.894-1.447l-7-14z"></path>
-                                </svg>
+                                <span className="text-sm font-medium text-blue-500">
+                                  {user?.firstName?.charAt(0) || "U"}
+                                </span>
                               )}
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    )}
+                            </div>
+                            <div className="flex-1 relative">
+                              <input
+                                ref={replyInputRef}
+                                type="text"
+                                value={replyContent}
+                                onChange={(e) => setReplyContent(e.target.value)}
+                                placeholder="Add a reply..."
+                                className="w-full pl-3 pr-16 py-2 bg-gray-100 hover:bg-white focus:bg-white rounded-full text-sm border border-transparent focus:border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all"
+                              />
+                              <button
+                                type="submit"
+                                disabled={
+                                  submittingReply || !replyContent.trim()
+                                }
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-blue-500 hover:text-blue-700 disabled:text-gray-400"
+                              >
+                                {submittingReply ? (
+                                  <svg
+                                    className="animate-spin h-4 w-4"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    className="h-5 w-5 transition-transform duration-200 transform rotate-90"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11h4a1 1 0 00.894-1.447l-7-14z"></path>
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+                  </div>
                 </div>
               ))}
             </div>
