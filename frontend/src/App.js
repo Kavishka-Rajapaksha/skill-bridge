@@ -15,6 +15,8 @@ import AdminBlockedUsers from "./pages/AdminBlockedUsers";
 import GroupCreate from "./pages/GroupCreate";
 import GroupsPage from "./pages/GroupsPage";
 import ReportedPosts from "./pages/admin/ReportedPosts"; // Import the ReportedPosts page
+import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 import { AuthProvider } from "./context/AuthContext";
 import PrivateRoute from "./components/PrivateRoute"; // Update this line
 import Header from "./components/Header"; // Import the Header component
@@ -42,7 +44,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         {/* Include Header only once here */}
         <Header />
         <Routes>
@@ -112,6 +114,31 @@ function App() {
             element={
               <PrivateRoute>
                 <GroupsPage />
+              </PrivateRoute>
+            }
+          />
+          {/* Profile Routes */}
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile/:userId"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/edit-profile"
+            element={
+              <PrivateRoute>
+                <EditProfile />
               </PrivateRoute>
             }
           />
