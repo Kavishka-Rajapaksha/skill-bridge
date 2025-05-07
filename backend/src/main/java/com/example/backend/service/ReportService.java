@@ -139,4 +139,14 @@ public class ReportService {
         
         return stats;
     }
+    
+    /**
+     * Get recent reports with limit
+     */
+    public List<Report> getRecentReports(int limit) {
+        // Create pageable request sorted by createdAt descending
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Report> reports = reportRepository.findAll(pageable);
+        return reports.getContent();
+    }
 }
