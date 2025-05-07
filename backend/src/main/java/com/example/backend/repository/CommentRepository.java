@@ -13,4 +13,6 @@ public interface CommentRepository extends MongoRepository<Comment, String> {
     List<Comment> findByUserIdOrderByCreatedAtDesc(String userId);
 
     Page<Comment> findByPostIdOrderByCreatedAtDesc(String postId, Pageable pageable);
+
+    List<Comment> findByPostId(String postId);
 }
