@@ -24,84 +24,114 @@ import com.example.backend.service.CustomUserDetailsService;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return new CustomUserDetailsService();
-    }
+        @Bean
+        public UserDetailsService userDetailsService() {
+                return new CustomUserDetailsService();
+        }
 
-    @Bean
-    public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService());
-        provider.setPasswordEncoder(passwordEncoder());
-        return provider;
-    }
+        @Bean
+        public DaoAuthenticationProvider authenticationProvider() {
+                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+                provider.setUserDetailsService(userDetailsService());
+                provider.setPasswordEncoder(passwordEncoder());
+                return provider;
+        }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
-                .httpBasic(Customizer.withDefaults())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll() 
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/error").permitAll()
-                        .requestMatchers("/api/auth/register").permitAll() // Explicitly permit registration
-                        .requestMatchers("/api/auth/login").permitAll() // Explicitly permit login
-                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN") // Secure admin endpoints
-                        .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**", "/api.media/**").permitAll()
-                        .anyRequest().authenticated())
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(exception -> exception.authenticationEntryPoint((request, response, authException) -> {
-                    response.setContentType("application/json");
-                    response.setStatus(403);
-                    response.getWriter().write("{\"error\":\"Access denied\",\"message\":\"" + 
-                        authException.getMessage().replace("\"", "'") + "\"}");
-                }));
+        @Bean
+        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+                http
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                .csrf(csrf -> csrf.disable())
+                                .httpBasic(Customizer.withDefaults())
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers("/api/auth/**").permitAll()
+                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                                .requestMatchers("/error").permitAll()
+                                                .requestMatchers("/api/auth/register").permitAll() // Explicitly permit
+                                                                                                   // registration
+                                                .requestMatchers("/api/auth/login").permitAll() // Explicitly permit
+                                                                                                // login
+                                                .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN") // Secure
+                                                                                                             // admin
+                                                                                                             // endpoints
+                                                .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**",
+                                                                "/api/media/**")
+                                                .permitAll()
+                                                .requestMatchers("/api/reactions", "/api/reactions/**").permitAll() // Changed
+                                                                                                                    // this
+                                                                                                                    // line
+                                                                                                                    // to
+                                                                                                                    // allow
+                                                                                                                    // all
+                                                                                                                    // reaction
+                                                                                                                    // endpoints
+                                                .requestMatchers(HttpMethod.GET, "/api/reactions/post/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/reactions/user").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/reactions").permitAll()
+                                                .requestMatchers(HttpMethod.DELETE, "/api/reactions").permitAll()
+                                                .anyRequest().authenticated())
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .exceptionHandling(exception -> exception
+                                                .authenticationEntryPoint((request, response, authException) -> {
+                                                        response.setContentType("application/json");
+                                                        response.setStatus(403);
+                                                        response.getWriter().write(
+                                                                        "{\"error\":\"Access denied\",\"message\":\"" +
+                                                                                        authException.getMessage()
+                                                                                                        .replace("\"", "'")
+                                                                                        + "\"}");
+                                                }));
 
-        return http.build();
-    }
+                return http.build();
+        }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:3001",
-                "http://localhost:3002"
-        ));
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "Origin",
-                "X-Requested-With",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers",
-                "Cache-Control",
-                "Pragma",
-                "If-Modified-Since",
-                "If-None-Match",
-                "userId")); // Added userId to allowed headers
-        configuration.setExposedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Disposition",
-                "Access-Control-Allow-Origin",
-                "Access-Control-Allow-Credentials"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOrigins(Arrays.asList(
+                                "http://localhost:3000",
+                                "http://localhost:3001",
+                                "http://localhost:3002"));
+                configuration.setAllowedMethods(Arrays.asList(
+                                "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+                configuration.setAllowedHeaders(Arrays.asList(
+                                "Authorization",
+                                "Content-Type",
+                                "Accept",
+                                "Origin",
+                                "X-Requested-With",
+                                "Access-Control-Request-Method",
+                                "Access-Control-Request-Headers",
+                                "Cache-Control",
+                                "Pragma",
+                                "If-Modified-Since",
+                                "If-None-Match"));
+                configuration.setExposedHeaders(Arrays.asList(
+                                "Authorization",
+                                "Content-Disposition",
+                                "Access-Control-Allow-Origin",
+                                "Access-Control-Allow-Methods",
+                                "Access-Control-Allow-Headers",
+                                "Access-Control-Allow-Credentials",
+                                "Access-Control-Expose-Headers",
+                                "Content-Type",
+                                "Content-Length",
+                                "Cache-Control",
+                                "ETag",
+                                "X-Total-Count", // Add these headers for reaction counts
+                                "X-Response-Time",
+                                "Access-Control-Expose-Headers"));
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
 }
