@@ -22,9 +22,10 @@ public class CommentController {
     public ResponseEntity<?> createComment(
             @RequestParam String postId,
             @RequestParam String userId,
-            @RequestParam String content) {
+            @RequestParam String content,
+            @RequestParam(required = false) String parentCommentId) {
         try {
-            CommentResponse comment = commentService.createComment(postId, userId, content);
+            CommentResponse comment = commentService.createComment(postId, userId, content, parentCommentId);
             return ResponseEntity.ok(comment);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -47,9 +48,10 @@ public class CommentController {
     @DeleteMapping("/{commentId}")
     public ResponseEntity<?> deleteComment(
             @PathVariable String commentId,
-            @RequestParam String userId) {
+            @RequestParam String userId,
+            @RequestParam(required = false, defaultValue = "false") boolean isAdmin) {
         try {
-            commentService.deleteComment(commentId, userId);
+            commentService.deleteComment(commentId, userId, isAdmin);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -59,7 +61,8 @@ public class CommentController {
     @GetMapping("/post/{postId}")
     public ResponseEntity<List<CommentResponse>> getPostComments(
             @PathVariable String postId,
-            @RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(commentService.getPostComments(postId, limit));
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(required = false) String currentUserId) {
+        return ResponseEntity.ok(commentService.getPostComments(postId, limit, currentUserId));
     }
 }
