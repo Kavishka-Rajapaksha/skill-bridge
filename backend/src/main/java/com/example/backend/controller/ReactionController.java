@@ -3,10 +3,10 @@ package com.example.backend.controller;
 import com.example.backend.model.Reaction;
 import com.example.backend.service.ReactionService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -17,37 +17,43 @@ public class ReactionController {
     @Autowired
     private ReactionService reactionService;
 
-    @GetMapping("/{postId}/stats")
-    public ResponseEntity<?> getReactionStats(@PathVariable String postId) {
-        return ResponseEntity.ok(reactionService.getReactionStats(postId));
-    }
+    @PostMapping("/toggle")
+    public ResponseEntity<?> toggleReaction(
+            @RequestParam String userId,
+            @RequestParam String postId) {
+        try {
+            boolean isLiked = reactionService.toggleReaction(userId, postId);
+            long count = reactionService.getReactionCount(postId);
 
-    @GetMapping("/{postId}/user/{userId}")
-    public ResponseEntity<?> getUserReaction(
-            @PathVariable String postId,
-            @PathVariable String userId) {
-        Reaction reaction = reactionService.getUserReaction(postId, userId);
-        if (reaction == null) {
-            return ResponseEntity.notFound().build();
+            Map<String, Object> response = new HashMap<>();
+            response.put("liked", isLiked);
+            response.put("count", count);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(error);
         }
-        return ResponseEntity.ok(reaction);
     }
 
-    @PostMapping("/{postId}")
-    public ResponseEntity<?> addReaction(
-            @PathVariable String postId,
-            @RequestBody Map<String, String> payload) {
-        return ResponseEntity.ok(reactionService.addReaction(
-                postId,
-                payload.get("userId"),
-                payload.get("type")));
-    }
+    @GetMapping("/status")
+    public ResponseEntity<?> getReactionStatus(
+            @RequestParam String userId,
+            @RequestParam String postId) {
+        try {
+            boolean hasReacted = reactionService.hasUserReacted(userId, postId);
+            long count = reactionService.getReactionCount(postId);
 
-    @DeleteMapping("/{postId}/user/{userId}")
-    public ResponseEntity<?> removeReaction(
-            @PathVariable String postId,
-            @PathVariable String userId) {
-        reactionService.removeReaction(postId, userId);
-        return ResponseEntity.ok().build();
+            Map<String, Object> response = new HashMap<>();
+            response.put("liked", hasReacted);
+            response.put("count", count);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(404).body(error);
+        }
     }
 }
