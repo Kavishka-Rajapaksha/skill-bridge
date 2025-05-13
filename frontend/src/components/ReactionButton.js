@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
+import WebSocketService from "../services/WebSocketService";
 
 function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
   const [liked, setLiked] = useState(false);
@@ -9,7 +10,9 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
   useEffect(() => {
     const checkReactionStatus = async () => {
       try {
-        const response = await axiosInstance.get(`/api/reactions/status?postId=${postId}&userId=${userId}`);
+        const response = await axiosInstance.get(
+          `/api/reactions/status?postId=${postId}&userId=${userId}`
+        );
         setLiked(response.data.liked);
         setCount(response.data.count);
       } catch (error) {
@@ -22,32 +25,29 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
     }
   }, [postId, userId]);
 
+  useEffect(() => {
+    WebSocketService.setReactionCallback((update) => {
+      if (update.postId === postId) {
+        setLiked(update.userLiked);
+        setCount(update.reactionCount);
+        setLoading(false);
+      }
+    });
+  }, [postId]);
+
   const handleReaction = async () => {
     if (loading) return;
-    
+
     try {
       setLoading(true);
-      // Optimistic UI update
-      setLiked(!liked);
-      setCount(liked ? count - 1 : count + 1);
 
-      const response = await axiosInstance.post("/api/reactions/toggle", null, {
-        params: { userId, postId }
+      await axiosInstance.post("/api/reactions/toggle", null, {
+        params: { userId, postId },
       });
 
-      // Update with actual values from server
-      setLiked(response.data.liked);
-      setCount(response.data.count);
-      
-      if (onReactionChange) {
-        onReactionChange(response.data);
-      }
+      // Don't update state here - wait for WebSocket update
     } catch (error) {
-      // Revert to previous state on error
-      setLiked(!liked);
-      setCount(liked ? count + 1 : count - 1);
       console.error("Error toggling reaction:", error);
-    } finally {
       setLoading(false);
     }
   };
@@ -58,7 +58,7 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       liked,
       count,
       onClick: handleReaction,
-      loading
+      loading,
     });
   }
 
@@ -67,7 +67,9 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
     <button
       onClick={handleReaction}
       disabled={loading}
-      className={`flex items-center space-x-2 ${liked ? "text-blue-600" : "text-gray-500 hover:text-blue-500"}`}
+      className={`flex items-center space-x-2 ${
+        liked ? "text-blue-600" : "text-gray-500 hover:text-blue-500"
+      }`}
     >
       <svg
         className="w-6 h-6"
