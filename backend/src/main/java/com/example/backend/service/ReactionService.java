@@ -5,8 +5,11 @@ import com.example.backend.model.Reaction;
 import com.example.backend.repository.PostRepository;
 import com.example.backend.repository.ReactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -17,6 +20,9 @@ public class ReactionService {
 
     @Autowired
     private PostRepository postRepository;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     public boolean toggleReaction(String userId, String postId) {
         try {
@@ -47,6 +53,12 @@ public class ReactionService {
             long likeCount = reactionRepository.countByPostId(postId);
             post.setLikes((int) likeCount);
             postRepository.save(post);
+
+            // Send WebSocket update
+            Map<String, Object> reactionUpdate = new HashMap<>();
+            reactionUpdate.put("postId", postId);
+            reactionUpdate.put("reactionCount", likeCount);
+            messagingTemplate.convertAndSend("/topic/reactions", reactionUpdate);
         } catch (Exception e) {
             throw new RuntimeException("Failed to update reaction count: " + e.getMessage());
         }

@@ -63,21 +63,20 @@ public class NotificationService {
 
             // Send comment update to all users viewing the post for COMMENT type
             if (type.equals("COMMENT") || type.equals("REPLY")) {
-                CommentUpdateMessage updateMsg = new CommentUpdateMessage(sourceId, type.equals("COMMENT") ? "ADD" : "REPLY");
+                CommentUpdateMessage updateMsg = new CommentUpdateMessage(sourceId,
+                        type.equals("COMMENT") ? "ADD" : "REPLY");
                 messagingTemplate.convertAndSend("/topic/posts/" + sourceId + "/comments", updateMsg);
             }
 
             // Send WebSocket message for comment updates
             if (type.equals("COMMENT")) {
                 messagingTemplate.convertAndSend(
-                    "/topic/posts/" + sourceId + "/comments",
-                    new WebSocketMessage("ADD", sourceId)
-                );
+                        "/topic/posts/" + sourceId + "/comments",
+                        new WebSocketMessage("ADD", sourceId));
             } else if (type.equals("COMMENT_DELETED")) {
                 messagingTemplate.convertAndSend(
-                    "/topic/posts/" + sourceId + "/comments",
-                    new WebSocketMessage("DELETE", sourceId)
-                );
+                        "/topic/posts/" + sourceId + "/comments",
+                        new WebSocketMessage("DELETE", sourceId));
             }
 
         } catch (Exception e) {
@@ -95,8 +94,13 @@ public class NotificationService {
             this.type = type;
         }
 
-        public String getPostId() { return postId; }
-        public String getType() { return type; }
+        public String getPostId() {
+            return postId;
+        }
+
+        public String getType() {
+            return type;
+        }
     }
 
     // Add this inner class at the same level as CommentUpdateMessage
@@ -109,8 +113,13 @@ public class NotificationService {
             this.postId = postId;
         }
 
-        public String getType() { return type; }
-        public String getPostId() { return postId; }
+        public String getType() {
+            return type;
+        }
+
+        public String getPostId() {
+            return postId;
+        }
     }
 
     public List<Notification> getUserNotifications(String userId) {
