@@ -277,4 +277,14 @@ public class CommentService {
         // Return updated comment response
         return convertToCommentResponse(comment, userId);
     }
+
+    public long getCommentCount(String postId) {
+        try {
+            List<Comment> comments = commentRepository.findByPostId(postId);
+            return comments.size();
+        } catch (Exception e) {
+            System.err.println("Error getting comment count: " + e.getMessage());
+            return 0;
+        }
+    }
 }

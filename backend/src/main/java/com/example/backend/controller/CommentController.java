@@ -6,7 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/comments")
@@ -64,5 +66,13 @@ public class CommentController {
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(required = false) String currentUserId) {
         return ResponseEntity.ok(commentService.getPostComments(postId, limit, currentUserId));
+    }
+
+    @GetMapping("/count/{postId}")
+    public ResponseEntity<Map<String, Long>> getCommentCount(@PathVariable String postId) {
+        long count = commentService.getCommentCount(postId);
+        Map<String, Long> response = new HashMap<>();
+        response.put("count", count);
+        return ResponseEntity.ok(response);
     }
 }
