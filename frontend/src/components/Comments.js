@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axiosInstance from "../utils/axios";
 
-function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
+function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cachedComments }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [editingComment, setEditingComment] = useState(null);
@@ -77,6 +77,17 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange }) {
       fetchComments();
     }
   }, [showInput, postId]);
+
+  useEffect(() => {
+    if (cachedComments) {
+      const processedComments = processCommentsAndReplies(cachedComments);
+      setComments(processedComments);
+      const totalComments = countTotalComments(processedComments);
+      onCommentCountChange?.(totalComments);
+    } else {
+      fetchComments();
+    }
+  }, [postId, cachedComments]);
 
   const processCommentsAndReplies = (commentsData) => {
     const parentComments = [];
