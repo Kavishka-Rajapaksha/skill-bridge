@@ -55,7 +55,7 @@ public class SecurityConfig {
                                                                                                              // admin
                                                                                                              // endpoints
                                                 .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**",
-                                                                "/api.media/**")
+                                                                "/api/media/**")
                                                 .permitAll()
                                                 .requestMatchers("/api/reactions", "/api/reactions/**").permitAll() // Changed
                                                                                                                     // this
@@ -97,10 +97,7 @@ public class SecurityConfig {
                 configuration.setAllowedOrigins(Arrays.asList(
                                 "http://localhost:3000",
                                 "http://localhost:3001",
-                                "http://localhost:3002",
-                                "http://165.232.179.196:3000",
-                                "http://165.232.179.196:3001",
-                                "http://165.232.179.196:3002"));
+                                "http://localhost:3002"));
                 configuration.setAllowedMethods(Arrays.asList(
                                 "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
                 configuration.setAllowedHeaders(Arrays.asList(
