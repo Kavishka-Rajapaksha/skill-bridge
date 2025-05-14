@@ -1,7 +1,13 @@
 import axios from "axios";
 
+// Get base URL from environment or fallback to server URL
+const API_URL = process.env.REACT_APP_API_URL || 
+               (window.location.hostname === 'localhost' ? 
+                'http://localhost:8081' : 
+                'http://165.232.179.196:8081');
+
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:8081",
+  baseURL: API_URL,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
