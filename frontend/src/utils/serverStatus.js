@@ -1,25 +1,13 @@
 import api from '../services/api';
 import axios from 'axios';
 
-// Determine the current environment
-const isLocalEnvironment = window.location.hostname === 'localhost';
-const serverHost = isLocalEnvironment ? 'localhost' : '165.232.179.196';
-
 // Define potential backend endpoints to check
 const HEALTH_ENDPOINTS = [
-  { url: '/api/health', port: 8081, host: serverHost },
-  { url: '/api/health', port: 5000, host: serverHost },
-  { url: '/health', port: 8081, host: serverHost },
-  { url: '/health', port: 5000, host: serverHost }
+  { url: '/api/health', port: 8081 },
+  { url: '/api/health', port: 5000 },
+  { url: '/health', port: 8081 },
+  { url: '/health', port: 5000 }
 ];
-
-// Add fallback endpoints if in local environment but server is remote
-if (isLocalEnvironment) {
-  HEALTH_ENDPOINTS.push(
-    { url: '/api/health', port: 8081, host: '165.232.179.196' },
-    { url: '/health', port: 8081, host: '165.232.179.196' }
-  );
-}
 
 /**
  * Utility function to check if the backend server is running
@@ -30,19 +18,18 @@ export const isServerRunning = async () => {
   for (const endpoint of HEALTH_ENDPOINTS) {
     try {
       // Try with axios directly to avoid interceptors that might be in the api instance
-      await axios.get(`http://${endpoint.host}:${endpoint.port}${endpoint.url}`, { 
+      await axios.get(`http://localhost:${endpoint.port}${endpoint.url}`, { 
         timeout: 3000,
         headers: { 'Accept': 'application/json' }
       });
       
       return { 
         isRunning: true, 
-        message: `Connected successfully to ${endpoint.host} on port ${endpoint.port}`,
-        port: endpoint.port,
-        host: endpoint.host
+        message: `Connected successfully on port ${endpoint.port}`,
+        port: endpoint.port
       };
     } catch (error) {
-      console.log(`Attempt failed for ${endpoint.url} on ${endpoint.host}:${endpoint.port}`);
+      console.log(`Attempt failed for ${endpoint.url} on port ${endpoint.port}`);
       // Continue to next endpoint
     }
   }
@@ -51,7 +38,7 @@ export const isServerRunning = async () => {
   console.error('Server connection check failed on all endpoints');
   return { 
     isRunning: false, 
-    message: 'Could not connect to backend server on any endpoint' 
+    message: 'Could not connect to backend server on any port' 
   };
 };
 
@@ -69,7 +56,7 @@ export const getDiagnostics = async () => {
 
   for (const endpoint of HEALTH_ENDPOINTS) {
     try {
-      await axios.get(`http://${endpoint.host}:${endpoint.port}${endpoint.url}`, { timeout: 2000 });
+      await axios.get(`http://localhost:${endpoint.port}${endpoint.url}`, { timeout: 2000 });
       diagnostics.ports[endpoint.port] = 'available';
     } catch (error) {
       diagnostics.ports[endpoint.port] = 'unavailable';
