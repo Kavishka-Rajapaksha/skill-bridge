@@ -5,11 +5,14 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import axiosInstance from "../utils/axios";
 import NotificationDropdown from "./NotificationDropdown";
 import WebSocketService from "../services/WebSocketService";
+import UserSearchService from "../utils/userSearchService";
+import SearchResultItem from "./SearchResultItem";
+import debounce from "lodash/debounce";
 
 function Header() {
   const { isAuthenticated, user } = useContext(AuthContext);
@@ -22,8 +25,69 @@ function Header() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownNotificationsRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchInputRef = useRef(null);
+  const searchResultsRef = useRef(null);
+  const navigate = useNavigate();
 
-  // Close dropdowns when clicking outside
+  const debouncedSearch = useCallback(
+    debounce(async (query) => {
+      if (query.length >= 2) {
+        setIsSearching(true);
+        setSearchResults([]); // Clear old results while searching
+        
+        try {
+          console.log("Initiating search for:", query);
+          const results = await UserSearchService.searchUsers(query);
+          console.log("Search results received:", results);
+          
+          if (Array.isArray(results) && results.length > 0) {
+            setSearchResults(results);
+          } else {
+            // If no results but we have a valid query, try direct fetch
+            console.log("No results, trying direct search");
+            const directResults = await axiosInstance.get(`/api/users?search=${encodeURIComponent(query)}`);
+            if (Array.isArray(directResults.data) && directResults.data.length > 0) {
+              setSearchResults(directResults.data);
+            } else {
+              setSearchResults([]);
+            }
+          }
+        } catch (error) {
+          console.error("Search error:", error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+        setIsSearching(false);
+      }
+    }, 300),
+    []
+  );
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setShowSearchResults(true);
+    if (value.length >= 2) {
+      setIsSearching(true);
+      debouncedSearch(value);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleSelectUser = (user) => {
+    setShowSearchResults(false);
+    setSearchTerm("");
+    navigate(`/profile/${user.id}`);
+  };
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (
@@ -44,11 +108,31 @@ function Header() {
       ) {
         setShowNotifications(false);
       }
+      if (
+        searchResultsRef.current &&
+        !searchResultsRef.current.contains(event.target) &&
+        !searchInputRef.current.contains(event.target)
+      ) {
+        setShowSearchResults(false);
+      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setShowSearchResults(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
     };
   }, []);
 
@@ -68,7 +152,6 @@ function Header() {
     }
   }, [user]);
 
-  // Call fetchNotifications on mount and set up interval
   useEffect(() => {
     if (isAuthenticated && user?.id) {
       fetchNotifications();
@@ -119,7 +202,6 @@ function Header() {
 
   const isAdmin = isAuthenticated && user && user.role === "ROLE_ADMIN";
 
-  // Initialize WebSocket connection
   useEffect(() => {
     if (isAuthenticated && user?.id) {
       WebSocketService.connect(user.id);
@@ -127,7 +209,6 @@ function Header() {
         setNotifications((prev) => [newNotification, ...prev]);
         setUnreadCount((prev) => prev + 1);
 
-        // Show browser notification if supported and permitted
         if (Notification.permission === "granted") {
           new Notification("SkillBridge", {
             body: newNotification.content,
@@ -136,7 +217,6 @@ function Header() {
         }
       });
 
-      // Request notification permission
       if (Notification.permission === "default") {
         Notification.requestPermission();
       }
@@ -149,7 +229,6 @@ function Header() {
     <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
           <Link
             to="/"
             className="flex items-center space-x-2 text-xl font-bold"
@@ -162,8 +241,126 @@ function Header() {
             </span>
           </Link>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
+          {isAuthenticated && (
+            <div className="hidden md:block flex-1 max-w-md mx-4 relative">
+              <div className="relative">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  onFocus={() => {
+                    if (searchTerm.length >= 2) {
+                      setShowSearchResults(true);
+                    }
+                  }}
+                  className="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                {searchTerm && (
+                  <button
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSearchResults([]);
+                    }}
+                  >
+                    <svg
+                      className="h-4 w-4 text-gray-400 hover:text-gray-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {showSearchResults && (
+                <div
+                  ref={searchResultsRef}
+                  className="absolute z-50 w-full mt-1 bg-white rounded-md shadow-lg max-h-80 overflow-y-auto border border-gray-200"
+                >
+                  {isSearching ? (
+                    <div className="flex justify-center items-center py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                      <span className="ml-2 text-gray-500">Searching...</span>
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <div className="py-1">
+                      {searchResults.map((user) => (
+                        <SearchResultItem
+                          key={user.id}
+                          user={user}
+                          onSelect={handleSelectUser}
+                        />
+                      ))}
+                    </div>
+                  ) : searchTerm.length >= 2 ? (
+                    <div className="py-4 px-4 text-center text-gray-500">
+                      <p>No users found matching "{searchTerm}"</p>
+                      <button 
+                        className="mt-2 text-sm text-blue-500 hover:text-blue-700"
+                        onClick={() => debouncedSearch(searchTerm)}
+                      >
+                        Try search again
+                      </button>
+                    </div>
+                  ) : searchTerm.length > 0 ? (
+                    <div className="py-4 px-4 text-center text-gray-500">
+                      Enter at least 2 characters to search
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="md:hidden flex items-center">
+            {isAuthenticated && (
+              <button
+                onClick={() => {
+                  searchInputRef.current?.focus();
+                  setMobileMenuOpen(false);
+                }}
+                className="p-2 text-gray-500 hover:text-gray-700 focus:outline-none mr-2"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </button>
+            )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-gray-500 hover:text-gray-700 focus:outline-none"
@@ -193,9 +390,7 @@ function Header() {
             </button>
           </div>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-6">
-            {/* Home Link */}
             <Link
               to="/"
               className="flex items-center text-gray-700 hover:text-blue-600 transition-all duration-200 px-3 py-2 rounded-md hover:bg-blue-50 font-medium"
@@ -216,7 +411,6 @@ function Header() {
               Home
             </Link>
 
-            {/* Add Notifications dropdown before Groups dropdown */}
             {isAuthenticated && (
               <div className="relative" ref={dropdownNotificationsRef}>
                 <button
@@ -246,7 +440,6 @@ function Header() {
                   )}
                 </button>
 
-                {/* Notifications Dropdown */}
                 {showNotifications && (
                   <NotificationDropdown
                     notifications={notifications}
@@ -259,7 +452,6 @@ function Header() {
               </div>
             )}
 
-            {/* Groups dropdown for authenticated users */}
             {isAuthenticated && (
               <div className="relative" ref={dropdownGroupsRef}>
                 <button
@@ -297,7 +489,6 @@ function Header() {
                   </svg>
                 </button>
 
-                {/* Groups Dropdown Menu */}
                 {showGroupsDropdown && (
                   <div className="absolute right-0 mt-2 w-52 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 transform transition-all duration-200">
                     <div className="py-1 rounded-md bg-white shadow-xs">
@@ -368,7 +559,6 @@ function Header() {
               </div>
             )}
 
-            {/* Admin Dashboard link */}
             {isAdmin && (
               <Link
                 to="/admin/dashboard"
@@ -397,7 +587,6 @@ function Header() {
             )}
           </nav>
 
-          {/* Auth Section - Desktop */}
           <div className="hidden md:flex items-center">
             {isAuthenticated ? (
               <div className="relative" ref={dropdownProfileRef}>
@@ -451,7 +640,6 @@ function Header() {
                   </svg>
                 </button>
 
-                {/* Profile Dropdown */}
                 {showProfileDropdown && (
                   <div className="absolute right-0 mt-2 w-52 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 transform transition-all duration-200">
                     <div className="py-1 rounded-md bg-white shadow-xs">
@@ -569,14 +757,103 @@ function Header() {
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {isAuthenticated && mobileMenuOpen && (
+          <div className="pt-2 pb-3 border-b border-gray-200">
+            <div className="relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                onFocus={() => {
+                  if (searchTerm.length >= 2) {
+                    setShowSearchResults(true);
+                  }
+                }}
+                className="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg
+                  className="h-4 w-4 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+              {searchTerm && (
+                <button
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSearchResults([]);
+                  }}
+                >
+                  <svg
+                    className="h-4 w-4 text-gray-400 hover:text-gray-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {showSearchResults && (
+              <div
+                ref={searchResultsRef}
+                className="absolute z-50 left-4 right-4 mt-1 bg-white rounded-md shadow-lg max-h-80 overflow-y-auto border border-gray-200"
+              >
+                {isSearching ? (
+                  <div className="flex justify-center items-center py-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="py-1">
+                    {searchResults.map((user) => (
+                      <SearchResultItem
+                        key={user.id}
+                        user={user}
+                        onSelect={(user) => {
+                          handleSelectUser(user);
+                          setMobileMenuOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : searchTerm.length >= 2 ? (
+                  <div className="py-4 px-4 text-center text-gray-500">
+                    No users found matching "{searchTerm}"
+                  </div>
+                ) : searchTerm.length > 0 ? (
+                  <div className="py-4 px-4 text-center text-gray-500">
+                    Enter at least 2 characters to search
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           className={`${
             mobileMenuOpen ? "block" : "hidden"
           } md:hidden transition-all duration-300 ease-in-out`}
         >
           <div className="px-2 pt-2 pb-4 space-y-1">
-            {/* Add notifications section for mobile */}
             {isAuthenticated && (
               <div className="px-3 py-2.5">
                 <div className="flex items-center justify-between">
@@ -609,7 +886,6 @@ function Header() {
               </div>
             )}
 
-            {/* Existing mobile menu items */}
             <Link
               to="/"
               className="block px-3 py-2.5 rounded-md text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
