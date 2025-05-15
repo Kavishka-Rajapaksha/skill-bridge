@@ -7,7 +7,7 @@ class WebSocketService {
     this.subscriptions = new Map();
     this.commentCallbacks = new Map();
     this.connectAttempts = 0;
-    this.maxConnectAttempts = 10; 
+    this.maxConnectAttempts = 10;
     this.reconnecting = false;
     this.userId = null;
     this.connectionPromise = null;
@@ -22,14 +22,16 @@ class WebSocketService {
     // Immediately notify of current status
     listener(this.connectionStatus);
     return () => {
-      this.connectionListeners = this.connectionListeners.filter(l => l !== listener);
+      this.connectionListeners = this.connectionListeners.filter(
+        (l) => l !== listener
+      );
     };
   }
 
   // Update connection status and notify listeners
   setConnectionStatus(status) {
     this.connectionStatus = status;
-    this.connectionListeners.forEach(listener => listener(status));
+    this.connectionListeners.forEach((listener) => listener(status));
   }
 
   connect(userId) {
@@ -40,19 +42,21 @@ class WebSocketService {
     this.userId = userId;
     this.connectAttempts = 0;
     this.setConnectionStatus("connecting");
-    
+
     this.connectionPromise = new Promise((resolve, reject) => {
       this.resolveConnection = resolve;
       this.rejectConnection = reject;
     });
-    
+
     this.connectWithRetry(userId);
     return this.connectionPromise;
   }
 
   connectWithRetry(userId) {
     if (this.connectAttempts >= this.maxConnectAttempts) {
-      console.warn("Max connection attempts reached. Giving up on WebSocket connection.");
+      console.warn(
+        "Max connection attempts reached. Giving up on WebSocket connection."
+      );
       this.reconnecting = false;
       this.setConnectionStatus("failed");
       if (this.rejectConnection) {
@@ -60,51 +64,36 @@ class WebSocketService {
       }
       return;
     }
-    
+
     this.connectAttempts++;
     this.reconnecting = true;
-    
-    // Get auth token from localStorage if available
-    const token = localStorage.getItem('token') || '';
-    const user = JSON.parse(localStorage.getItem('user')) || {};
-    const authHeader = user.email && user.rawPassword ? 
-      `Basic ${btoa(`${user.email}:${user.rawPassword}`)}` : '';
 
     try {
       this.client = new Client({
         webSocketFactory: () => {
           console.log("Opening Web Socket...");
-          // Add token as a query parameter for authentication
-          const socket = new SockJS(`http://localhost:8081/ws?token=${token}`);
-          
-          if (authHeader) {
-            const originalConnect = socket.connect;
-            socket.connect = function() {
-              this.headers = { 
-                ...this.headers,
-                Authorization: authHeader
-              };
-              return originalConnect.call(this);
-            };
-          }
-          
-          // Handle socket errors
+          // Simplified connection without token
+          const socket = new SockJS("http://localhost:8081/ws");
+
           socket.onerror = (error) => {
             console.error("WebSocket connection error:", error);
           };
-          
+
           return socket;
         },
         debug: (str) => {
-          // Only log important STOMP messages to reduce console noise
-          if (str.includes("error") || str.includes("failed") || str.includes("connect")) {
+          if (
+            str.includes("error") ||
+            str.includes("failed") ||
+            str.includes("connect")
+          ) {
             console.log(str);
           }
         },
         reconnectDelay: 5000,
         heartbeatIncoming: 8000,
         heartbeatOutgoing: 8000,
-        connectionTimeout: 15000, // Reduced timeout for faster failure detection
+        connectionTimeout: 15000,
       });
 
       this.client.onConnect = () => {
@@ -142,21 +131,21 @@ class WebSocketService {
             console.error("Error subscribing to notifications:", error);
           }
         }
-        
+
         // Process any pending subscriptions
         this.processPendingSubscriptions();
       };
 
       this.client.onStompError = (frame) => {
-        console.error('STOMP protocol error:', frame.headers['message']);
+        console.error("STOMP protocol error:", frame.headers["message"]);
         this.setConnectionStatus("error");
         if (this.rejectConnection) {
-          this.rejectConnection('STOMP protocol error');
+          this.rejectConnection("STOMP protocol error");
         }
       };
 
       this.client.onWebSocketError = (event) => {
-        console.error('WebSocket error. Will attempt to reconnect shortly.');
+        console.error("WebSocket error. Will attempt to reconnect shortly.");
         this.setConnectionStatus("error");
         this.scheduleReconnect(userId);
       };
@@ -214,7 +203,7 @@ class WebSocketService {
           }
         });
         this.subscriptions.clear();
-        
+
         this.client.deactivate();
         this.setConnectionStatus("disconnected");
       } catch (error) {
@@ -246,14 +235,16 @@ class WebSocketService {
       console.warn("Cannot subscribe to comments: missing postId");
       return { success: false };
     }
-    
+
     // Store callback for this post regardless of connection status
     this.commentCallbacks.set(postId, callback);
-    
+
     if (!this.isConnected()) {
-      console.log(`Queueing subscription to comments for post ${postId} for when connection is established`);
+      console.log(
+        `Queueing subscription to comments for post ${postId} for when connection is established`
+      );
       // Store the pending subscription without adding duplicates
-      if (!this.pendingSubscriptions.some(sub => sub.postId === postId)) {
+      if (!this.pendingSubscriptions.some((sub) => sub.postId === postId)) {
         this.pendingSubscriptions.push({ postId, callback });
       }
       return { success: false, queued: true };
@@ -265,16 +256,18 @@ class WebSocketService {
   _subscribeToCommentsInternal(postId, callback) {
     try {
       if (!this.client || !this.client.active) {
-        console.log(`Cannot subscribe to comments for post ${postId}: Not connected`);
+        console.log(
+          `Cannot subscribe to comments for post ${postId}: Not connected`
+        );
         return false;
       }
-      
+
       // Check if already subscribed to avoid duplicates
       if (this.subscriptions.has(postId)) {
         console.log(`Already subscribed to comments for post ${postId}`);
         return true;
       }
-      
+
       // Subscribe to comment updates for this post
       const subscription = this.client.subscribe(
         `/topic/posts/${postId}/comments`,
@@ -296,7 +289,10 @@ class WebSocketService {
       console.log(`Successfully subscribed to comments for post ${postId}`);
       return true;
     } catch (error) {
-      console.error(`Failed to subscribe to comments for post ${postId}:`, error);
+      console.error(
+        `Failed to subscribe to comments for post ${postId}:`,
+        error
+      );
       return false;
     }
   }
@@ -313,9 +309,11 @@ class WebSocketService {
       this.subscriptions.delete(postId);
       this.commentCallbacks.delete(postId);
     }
-    
+
     // Also remove from pending subscriptions if it exists there
-    this.pendingSubscriptions = this.pendingSubscriptions.filter(item => item.postId !== postId);
+    this.pendingSubscriptions = this.pendingSubscriptions.filter(
+      (item) => item.postId !== postId
+    );
   }
 
   // Helper method to check connection status
@@ -336,7 +334,7 @@ class WebSocketService {
     if (this.isConnected()) {
       return true;
     }
-    
+
     if (!this.connectionPromise) {
       if (this.userId) {
         this.connectionPromise = this.connect(this.userId);
@@ -344,12 +342,12 @@ class WebSocketService {
         return false;
       }
     }
-    
+
     try {
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Connection timeout')), timeout);
+        setTimeout(() => reject(new Error("Connection timeout")), timeout);
       });
-      
+
       return await Promise.race([this.connectionPromise, timeoutPromise]);
     } catch (error) {
       console.error("Connection wait failed:", error);

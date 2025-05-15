@@ -25,4 +25,8 @@ public interface PostRepository extends MongoRepository<Post, String> {
     long countByCreatedAtGreaterThan(LocalDateTime date);
 
     long countByCreatedAtGreaterThanEqual(Date date);
+
+    List<Post> findByGroupIdOrderByCreatedAtDesc(String groupId);
+
+    List<Post> findBySharedFromIsNullOrderByCreatedAtDesc();
 }

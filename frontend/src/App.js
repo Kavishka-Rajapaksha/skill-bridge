@@ -21,6 +21,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { PopupProvider } from "./context/PopupContext"; // Import the PopupProvider
 import PrivateRoute from "./components/PrivateRoute"; // Update this line
 import Header from "./components/Header"; // Import the Header component
+import GroupFeed from "./pages/GroupFeed";
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -46,7 +47,9 @@ function App() {
   return (
     <AuthProvider>
       <PopupProvider>
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Router
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           {/* Include Header only once here */}
           <Header />
           <Routes>
@@ -116,6 +119,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <GroupsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/group/:groupId"
+              element={
+                <PrivateRoute>
+                  <GroupFeed />
                 </PrivateRoute>
               }
             />
