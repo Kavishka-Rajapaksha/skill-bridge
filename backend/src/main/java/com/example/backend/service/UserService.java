@@ -125,4 +125,22 @@ public class UserService {
     public User saveUser(User user) {
         return userRepository.save(user);
     }
+
+    /**
+     * Search users by query string matching firstName, lastName, or email
+     * @param query The search query
+     * @return List of users that match the search criteria
+     */
+    public List<User> searchUsers(String query) {
+        List<User> users = userRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+            query, query, query);
+        
+        // Remove sensitive information before returning
+        users.forEach(user -> {
+            user.setPassword(null);
+            user.setRawPassword(null);
+        });
+        
+        return users;
+    }
 }
