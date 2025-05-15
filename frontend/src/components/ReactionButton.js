@@ -39,9 +39,9 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
         }
       }
     };
-    
+
     WebSocketService.setReactionCallback(callback);
-    
+
     return () => {
       // Clean up by setting an empty callback if component unmounts
       WebSocketService.setReactionCallback(() => {});
@@ -55,12 +55,12 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       // Optimistically update UI immediately
       const newLikedState = !liked;
       const newCount = newLikedState ? count + 1 : Math.max(0, count - 1);
-      
+
       setLiked(newLikedState);
       setCount(newCount);
       setLoading(true);
       setOptimisticUpdate(Date.now());
-      
+
       // Notify parent about the change
       if (onReactionChange) {
         onReactionChange({ liked: newLikedState, count: newCount });
@@ -70,10 +70,10 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       await axiosInstance.post("/api/reactions/toggle", null, {
         params: { userId, postId },
       });
-      
+
       // Success! Keep the optimistic update
       setLoading(false);
-      
+
       // We'll let WebSocket reconcile any inconsistencies if needed
     } catch (error) {
       console.error("Error toggling reaction:", error);
@@ -82,10 +82,13 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       setCount(liked ? count + 1 : Math.max(0, count - 1));
       setLoading(false);
       setOptimisticUpdate(null);
-      
+
       // Also notify parent about the revert
       if (onReactionChange) {
-        onReactionChange({ liked, count: liked ? count + 1 : Math.max(0, count - 1) });
+        onReactionChange({
+          liked,
+          count: liked ? count + 1 : Math.max(0, count - 1),
+        });
       }
     }
   };
@@ -110,7 +113,9 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       }`}
     >
       <svg
-        className={`w-6 h-6 transition-transform duration-200 ${liked ? "scale-110" : ""}`}
+        className={`w-6 h-6 transition-transform duration-200 ${
+          liked ? "scale-110" : ""
+        }`}
         fill={liked ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"

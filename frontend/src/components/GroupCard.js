@@ -74,7 +74,7 @@ function GroupCard({ group, onUpdate, onDelete }) {
 
   return (
     <div className="bg-white rounded-lg shadow hover:shadow-md transition-all duration-200 flex flex-col">
-      <Link to={`/groups/${group.id}`} className="block flex-grow">
+      <Link to={`/group/${group.id}`} className="block flex-grow">
         <div className="h-40 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-t-lg flex items-center justify-center">
           <span className="text-5xl font-bold text-white">
             {displayName?.charAt(0) || "?"}

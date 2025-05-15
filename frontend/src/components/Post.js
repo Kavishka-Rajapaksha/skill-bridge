@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useContext,
+  useCallback,
+  useRef,
+} from "react";
 import axiosInstance from "../utils/axios";
 import Comments from "./Comments";
 import ReactionButton from "./ReactionButton";
@@ -6,6 +12,7 @@ import ReportModal from "./ReportModal";
 import WebSocketService from "../services/WebSocketService";
 import { AuthContext } from "../context/AuthContext";
 import { usePopup } from "../context/PopupContext";
+import ShareToGroupModal from "./ShareToGroupModal";
 
 function Post({ post, onPostDeleted, onPostUpdated }) {
   const { isAuthenticated } = useContext(AuthContext);
@@ -32,39 +39,36 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const previousPostRef = useRef(post);
   const userActivityTimeoutRef = useRef(null);
   const isUserActiveRef = useRef(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
+    console.log("Post object:", post);
     if (user && user.role === "ROLE_ADMIN") {
       setIsUserAdmin(true);
     }
-  }, [user]);
+  }, [user, post]);
 
-  // Track user activity
   useEffect(() => {
     const handleUserActivity = () => {
       isUserActiveRef.current = true;
 
-      // Clear any existing refresh timeout when user is active
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = null;
       }
 
-      // Set timeout to consider user inactive after 3 seconds
       clearTimeout(userActivityTimeoutRef.current);
       userActivityTimeoutRef.current = setTimeout(() => {
         isUserActiveRef.current = false;
 
-        // Schedule a refresh when user becomes inactive
         if (!showComments && !isRefreshingRef.current) {
           refreshTimeoutRef.current = setTimeout(() => {
             refreshPostData(true);
-          }, 500); // Small delay after inactivity
+          }, 500);
         }
       }, 3000);
     };
 
-    // Listen for user movement
     window.addEventListener("mousemove", handleUserActivity);
     window.addEventListener("touchmove", handleUserActivity);
     window.addEventListener("keydown", handleUserActivity);
@@ -94,26 +98,32 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     return `${window.location.protocol}//${window.location.hostname}:8081${url}`;
   };
 
+  const FALLBACK_IMAGE_URL = encodeURI(
+    "data:image/svg+xml;base64," +
+      btoa(`
+    <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#f0f0f0"/>
+      <text x="50%" y="50%" font-family="Arial" font-size="24" fill="#666" text-anchor="middle" dy=".3em">
+        Image Not Found
+      </text>
+    </svg>
+  `)
+  );
+
   const getMediaUrl = async (mediaId, originalUrl) => {
     if (!mediaId) return getFullUrl(originalUrl);
 
     try {
-      const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
-
       const response = await axiosInstance.getMedia(mediaId);
-
       if (response.data && typeof response.data === "string") {
         return response.data;
       }
-
-      console.warn(
-        `Invalid or empty media data for ${mediaId}, using fallback URL`
-      );
+      console.warn(`Invalid media data for ${mediaId}, using fallback URL`);
       return getFullUrl(originalUrl);
     } catch (error) {
       console.error(`Error loading media ${mediaId}:`, error);
       setMediaErrors((prev) => ({ ...prev, [mediaId]: true }));
-      return getFullUrl(originalUrl);
+      return FALLBACK_IMAGE_URL;
     }
   };
 
@@ -168,36 +178,39 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     };
   };
 
-  const refreshPostData = useCallback(async (quiet = false) => {
-    if (isRefreshingRef.current) return;
+  const refreshPostData = useCallback(
+    async (quiet = false) => {
+      if (isRefreshingRef.current) return;
 
-    try {
-      isRefreshingRef.current = true;
-      setQuietUpdate(quiet);
+      try {
+        isRefreshingRef.current = true;
+        setQuietUpdate(quiet);
 
-      const response = await axiosInstance.get(`/api/posts/${post.id}`);
-      if (response.data) {
-        setCommentCount(response.data.comments?.length || 0);
+        const response = await axiosInstance.get(`/api/posts/${post.id}`);
+        if (response.data) {
+          setCommentCount(response.data.comments?.length || 0);
 
-        const hasSignificantChanges =
-          previousPostRef.current.content !== response.data.content ||
-          previousPostRef.current.reactions?.length !==
-            response.data.reactions?.length;
+          const hasSignificantChanges =
+            previousPostRef.current.content !== response.data.content ||
+            previousPostRef.current.reactions?.length !==
+              response.data.reactions?.length;
 
-        if (hasSignificantChanges) {
-          onPostUpdated?.(response.data);
-          previousPostRef.current = response.data;
+          if (hasSignificantChanges) {
+            onPostUpdated?.(response.data);
+            previousPostRef.current = response.data;
+          }
+
+          setLastRefreshed(Date.now());
         }
-
-        setLastRefreshed(Date.now());
+      } catch (error) {
+        console.error("Error refreshing post data:", error);
+      } finally {
+        isRefreshingRef.current = false;
+        setTimeout(() => setQuietUpdate(false), 7000);
       }
-    } catch (error) {
-      console.error("Error refreshing post data:", error);
-    } finally {
-      isRefreshingRef.current = false;
-      setTimeout(() => setQuietUpdate(false), 7000);
-    }
-  }, [post.id, onPostUpdated]);
+    },
+    [post.id, onPostUpdated]
+  );
 
   const debouncedRefresh = useCallback(
     debounce((quiet) => refreshPostData(quiet), 7000),
@@ -205,8 +218,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   );
 
   const handleReactionChange = ({ liked, count }) => {
-    // Immediately update post data with the new reaction information
-    // This prevents the need for a full refresh
     const updatedPost = {
       ...post,
       userReaction: liked ? { type: "LIKE" } : null,
@@ -217,7 +228,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       onPostUpdated(updatedPost);
     }
 
-    // Cancel any pending refreshes
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
     }
@@ -292,32 +302,62 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       onConfirm: async () => {
         try {
           setDeleting(true);
-          if (isUserAdmin && user.id !== post.userId) {
-            await axiosInstance.delete(
-              `/api/posts/${post.id}?userId=${user.id}&isAdmin=true`
-            );
-          } else {
-            await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}`);
-          }
+          const endpoint = `/api/posts/${post.id}`;
+          const params = new URLSearchParams({
+            userId: user.id,
+            isAdmin: isUserAdmin && user.id !== post.userId,
+          });
+
+          await axiosInstance.delete(`${endpoint}?${params}`);
+
           onPostDeleted?.(post.id);
           setShowMenu(false);
+
           showPopup({
             message: "Post deleted successfully!",
             type: "success",
             duration: 4000,
             icon: (
-              <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <svg
+                className="w-6 h-6 text-green-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             ),
-            animation: "slide-up"
+            animation: "slide-up",
           });
         } catch (error) {
           console.error("Error deleting post:", error);
+          const errorMessage =
+            error.response?.data || "Failed to delete post. Please try again.";
+
           showPopup({
-            message: "Failed to delete post. Please try again.",
+            message: errorMessage,
             type: "error",
-            duration: 4000
+            duration: 4000,
+            icon: (
+              <svg
+                className="w-6 h-6 text-red-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            ),
           });
         } finally {
           setDeleting(false);
@@ -325,7 +365,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
       },
       type: "danger",
       confirmText: "Delete",
-      cancelText: "Cancel"
+      cancelText: "Cancel",
     });
     setShowMenu(false);
   };
@@ -397,6 +437,15 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     console.log("Report submitted successfully");
   };
 
+  const handleShareSuccess = () => {
+    showPopup({
+      message: "Post shared successfully!",
+      type: "success",
+      duration: 3000,
+    });
+    refreshPostData(); // Refresh the post to reflect the updated shared details
+  };
+
   const formatContent = (content) => {
     if (!content) return "";
 
@@ -420,6 +469,99 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         quietUpdate ? "transition-none" : ""
       }`}
     >
+      {(post.sharedByUserId || post.sharedByUserName) && (
+        <div className="bg-gray-50 border-b border-gray-200 p-4">
+          {/* Shared by section */}
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
+              <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                {post.sharedByUserProfilePicture ? (
+                  <img
+                    src={post.sharedByUserProfilePicture}
+                    alt={post.sharedByUserName || "Shared by"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-lg font-semibold text-indigo-600">
+                    {(post.sharedByUserName || "U").charAt(0)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">
+                {post.sharedByUserName || "Unknown User"}
+              </p>
+              <p className="text-sm text-gray-500">
+                shared a post • {formatDate(post.sharedAt) || "N/A"}
+              </p>
+            </div>
+          </div>
+
+          {/* Original post wrapper */}
+          <div className="ml-12 mt-2 border-l-2 border-gray-200 pl-4">
+            {/* Original post header */}
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
+                <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                  {post.originalUserProfilePicture ? (
+                    <img
+                      src={post.originalUserProfilePicture}
+                      alt={post.originalUserName || "Original poster"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-lg font-semibold text-indigo-600">
+                      {(post.originalUserName || "U").charAt(0)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">
+                  {post.originalUserName || "Unknown User"}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {formatDate(post.originalCreatedAt) || "N/A"}
+                </p>
+              </div>
+            </div>
+
+            {/* Original post content */}
+            <div className="mt-3">
+              {/* Use original content if available, fallback to current content */}
+              <p className="text-gray-800 whitespace-pre-wrap">
+                {post.originalContent || post.content}
+              </p>
+
+              {/* Original media */}
+              <div className="mt-3 space-y-2">
+                {(post.originalVideoUrl || post.videoUrl) && (
+                  <video
+                    src={post.originalVideoUrl || post.videoUrl}
+                    className="w-full rounded-lg"
+                    controls
+                  />
+                )}
+                
+                {(post.originalImageUrls?.length > 0 || post.imageUrls?.length >.0) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(post.originalImageUrls || post.imageUrls).map((url, index) => (
+                      <img
+                        key={index}
+                        src={url}
+                        alt={`Original post image ${index + 1}`}
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between p-5 border-b border-gray-50">
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
@@ -679,11 +821,9 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         ) : (
           <>
             <div
-              className="text-gray-800 mb-4 leading-relaxed"
+              className="text-gray-800 mb-4 leading-relaxed px-5"
               dangerouslySetInnerHTML={{
-                __html: formatContent(post.content)
-                  .split("\n")
-                  .join("<br />"),
+                __html: formatContent(post.content).split("\n").join("<br />"),
               }}
             />
 
@@ -709,7 +849,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                 <div
                   className={`grid ${
                     post.imageUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"
-                  } gap-2`}
+                  } gap-2 px-5`}
                 >
                   {post.imageUrls.map((url, index) => {
                     const mediaId = url.split("/").pop();
@@ -730,8 +870,7 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                           className="w-full h-full object-cover max-h-[500px]"
                           onError={(e) => {
                             console.error("Image failed to load:", url);
-                            e.target.src =
-                              "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEZhaWxlZCB0byBMb2FkPC90ZXh0Pjwvc3ZnPg==";
+                            e.target.src = FALLBACK_IMAGE_URL;
                           }}
                         />
                       </div>
@@ -878,7 +1017,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
               </button>
             )}
 
-            <button className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-gray-600 hover:bg-gray-100 transition-colors duration-200">
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-gray-600 hover:bg-gray-100 transition-colors duration-200"
+            >
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -915,6 +1057,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         onClose={() => setShowReportModal(false)}
         postId={post.id}
         onSuccess={handleReportSuccess}
+      />
+
+      <ShareToGroupModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        postId={post.id}
+        onSuccess={handleShareSuccess}
+        post={post}
       />
     </div>
   );
