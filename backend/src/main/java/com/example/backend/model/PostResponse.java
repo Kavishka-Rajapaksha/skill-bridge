@@ -24,7 +24,7 @@ public class PostResponse {
     private String sharedByUserName;
     private String sharedByUserProfilePicture;
     private LocalDateTime sharedAt;
-    private String originalUserId;  // Add this field
+    private String originalUserId; // Add this field
     private String originalUserName;
     private String originalUserProfilePicture;
     private LocalDateTime originalCreatedAt;
