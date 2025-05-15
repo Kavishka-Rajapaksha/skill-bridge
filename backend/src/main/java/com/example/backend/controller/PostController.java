@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.bson.types.ObjectId;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -113,11 +115,28 @@ public class PostController {
             @RequestParam(required = false, defaultValue = "false") boolean isAdmin) {
         try {
             logger.info("Deleting post: " + postId + ", user: " + userId + ", isAdmin: " + isAdmin);
+
+            // Validate inputs
+            if (postId == null || userId == null) {
+                return ResponseEntity.badRequest().body("Post ID and User ID are required");
+            }
+
+            // Check if post exists
+            if (!postRepository.existsById(postId)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Post not found");
+            }
+
             postService.deletePost(postId, userId, isAdmin);
             return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            logger.warning("Error deleting post: " + e.getMessage());
+
+        } catch (IllegalArgumentException e) {
+            logger.warning("Invalid delete request: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.severe("Error deleting post: " + e.getMessage());
+            e.printStackTrace(); // Add stack trace for debugging
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to delete post: " + e.getMessage());
         }
     }
 
@@ -132,6 +151,32 @@ public class PostController {
             return ResponseEntity.ok(post);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/posts/{postId}/share")
+    public ResponseEntity<?> sharePostToGroup(
+            @PathVariable String postId,
+            @RequestBody Map<String, String> request) {
+        try {
+            String groupId = request.get("groupId");
+            String userId = request.get("userId");
+
+            if (groupId == null || userId == null) {
+                return ResponseEntity.badRequest().body("Group ID and User ID are required");
+            }
+
+            logger.info("Sharing post " + postId + " to group " + groupId + " by user " + userId);
+            PostResponse sharedPost = postService.sharePostToGroup(postId, groupId, userId);
+            return ResponseEntity.ok(sharedPost);
+        } catch (IllegalArgumentException e) {
+            logger.warning("Invalid share request: " + e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.severe("Error sharing post: " + e.getMessage());
+            e.printStackTrace(); // Add this for better debugging
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to share post: " + e.getMessage());
         }
     }
 

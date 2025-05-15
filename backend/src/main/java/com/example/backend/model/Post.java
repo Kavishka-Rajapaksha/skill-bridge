@@ -23,6 +23,8 @@ public class Post {
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt = LocalDateTime.now();
     private Map<String, Integer> reactionCounts = new HashMap<>();
+    private String groupId;
+    private String sharedFrom;
 
     public Post() {
     }
@@ -133,17 +135,33 @@ public class Post {
         this.reactionCounts = reactionCounts;
     }
 
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
+    }
+
+    public String getSharedFrom() {
+        return sharedFrom;
+    }
+
+    public void setSharedFrom(String sharedFrom) {
+        this.sharedFrom = sharedFrom;
+    }
+
     // Helper method to add or update a specific reaction count
     public void addReactionCount(String reactionType, int count) {
-        this.reactionCounts.put(reactionType, 
-            this.reactionCounts.getOrDefault(reactionType, 0) + count);
+        this.reactionCounts.put(reactionType,
+                this.reactionCounts.getOrDefault(reactionType, 0) + count);
     }
 
     // Helper method to get total reaction count
     public int getTotalReactionCount() {
         return this.reactionCounts.values().stream()
-            .mapToInt(Integer::intValue)
-            .sum();
+                .mapToInt(Integer::intValue)
+                .sum();
     }
 
     // Helper method to add media type info
