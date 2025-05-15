@@ -8,6 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/users")
 @CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
@@ -115,6 +118,37 @@ public class UserController {
         try {
             RoleUpdateRequest request = new RoleUpdateRequest("ROLE_USER");
             return updateUserRole(userId, request);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchUsers(@RequestParam String query) {
+        try {
+            if (query == null || query.trim().isEmpty() || query.length() < 2) {
+                return ResponseEntity.badRequest().body("Search query must be at least 2 characters");
+            }
+            
+            // Case-insensitive search for firstName, lastName, or email containing the query
+            List<User> users = userService.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                query, query, query);
+            
+            // Remove sensitive information from users
+            List<User> sanitizedUsers = users.stream()
+                .map(user -> {
+                    User sanitized = new User();
+                    sanitized.setId(user.getId());
+                    sanitized.setFirstName(user.getFirstName());
+                    sanitized.setLastName(user.getLastName());
+                    sanitized.setEmail(user.getEmail());
+                    sanitized.setProfilePicture(user.getProfilePicture());
+                    sanitized.setRole(user.getRole());
+                    return sanitized;
+                })
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(sanitizedUsers);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
