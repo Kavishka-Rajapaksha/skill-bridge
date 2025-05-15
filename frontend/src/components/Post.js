@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
 import axiosInstance from "../utils/axios";
 import Comments from "./Comments";
 import ReactionButton from "./ReactionButton";
@@ -24,12 +24,63 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   const [lastRefreshed, setLastRefreshed] = useState(Date.now());
   const [showReportModal, setShowReportModal] = useState(false);
   const user = JSON.parse(localStorage.getItem("user"));
+  const refreshTimeoutRef = useRef(null);
+  const isRefreshingRef = useRef(false);
+  const [quietUpdate, setQuietUpdate] = useState(false);
+  const previousPostRef = useRef(post);
+  const userActivityTimeoutRef = useRef(null);
+  const isUserActiveRef = useRef(false);
 
   useEffect(() => {
     if (user && user.role === "ROLE_ADMIN") {
       setIsUserAdmin(true);
     }
   }, [user]);
+
+  // Track user activity
+  useEffect(() => {
+    const handleUserActivity = () => {
+      isUserActiveRef.current = true;
+
+      // Clear any existing refresh timeout when user is active
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+
+      // Set timeout to consider user inactive after 3 seconds
+      clearTimeout(userActivityTimeoutRef.current);
+      userActivityTimeoutRef.current = setTimeout(() => {
+        isUserActiveRef.current = false;
+
+        // Schedule a refresh when user becomes inactive
+        if (!showComments && !isRefreshingRef.current) {
+          refreshTimeoutRef.current = setTimeout(() => {
+            refreshPostData(true);
+          }, 500); // Small delay after inactivity
+        }
+      }, 3000);
+    };
+
+    // Listen for user movement
+    window.addEventListener("mousemove", handleUserActivity);
+    window.addEventListener("touchmove", handleUserActivity);
+    window.addEventListener("keydown", handleUserActivity);
+
+    return () => {
+      window.removeEventListener("mousemove", handleUserActivity);
+      window.removeEventListener("touchmove", handleUserActivity);
+      window.removeEventListener("keydown", handleUserActivity);
+
+      if (userActivityTimeoutRef.current) {
+        clearTimeout(userActivityTimeoutRef.current);
+      }
+
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, [showComments]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
@@ -42,17 +93,15 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   };
 
   const getMediaUrl = async (mediaId, originalUrl) => {
+    if (!mediaId) return getFullUrl(originalUrl);
+
     try {
       const mediaType = post.mediaTypes && post.mediaTypes[mediaId];
 
-      const response = await axiosInstance.get(`/api/media/${mediaId}`, {
-        responseType: "blob",
-      });
+      const response = await axiosInstance.getMedia(mediaId);
 
-      if (response.data && response.data.url) {
-        return response.data.url;
-      } else if (response.data instanceof Blob && response.data.size > 0) {
-        return URL.createObjectURL(response.data);
+      if (response.data && typeof response.data === "string") {
+        return response.data;
       }
 
       console.warn(
@@ -105,38 +154,134 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     };
   }, [post.videoUrl, post.imageUrls]);
 
-  const refreshPostData = async () => {
+  const debounce = (func, wait) => {
+    let timeout;
+    return function (...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
+
+  const refreshPostData = useCallback(async (quiet = false) => {
+    if (isRefreshingRef.current) return;
+
     try {
+      isRefreshingRef.current = true;
+      setQuietUpdate(quiet);
+
       const response = await axiosInstance.get(`/api/posts/${post.id}`);
       if (response.data) {
         setCommentCount(response.data.comments?.length || 0);
-        onPostUpdated?.(response.data);
+
+        const hasSignificantChanges =
+          previousPostRef.current.content !== response.data.content ||
+          previousPostRef.current.reactions?.length !==
+            response.data.reactions?.length;
+
+        if (hasSignificantChanges) {
+          onPostUpdated?.(response.data);
+          previousPostRef.current = response.data;
+        }
+
         setLastRefreshed(Date.now());
       }
     } catch (error) {
       console.error("Error refreshing post data:", error);
+    } finally {
+      isRefreshingRef.current = false;
+      setTimeout(() => setQuietUpdate(false), 7000);
+    }
+  }, [post.id, onPostUpdated]);
+
+  const debouncedRefresh = useCallback(
+    debounce((quiet) => refreshPostData(quiet), 7000),
+    [refreshPostData]
+  );
+
+  const handleReactionChange = ({ liked, count }) => {
+    // Immediately update post data with the new reaction information
+    // This prevents the need for a full refresh
+    const updatedPost = {
+      ...post,
+      userReaction: liked ? { type: "LIKE" } : null,
+      reactionCount: count,
+    };
+
+    if (onPostUpdated) {
+      onPostUpdated(updatedPost);
+    }
+
+    // Cancel any pending refreshes
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
     }
   };
 
   useEffect(() => {
-    let refreshInterval;
+    previousPostRef.current = post;
+  }, [post]);
 
+  useEffect(() => {
     if (!showComments) {
-      refreshInterval = setInterval(() => {
-        refreshPostData();
-      }, 30000);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+
+      refreshTimeoutRef.current = setTimeout(() => {
+        refreshPostData(true);
+      }, 60000);
     }
 
     return () => {
-      if (refreshInterval) clearInterval(refreshInterval);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
     };
-  }, [showComments, post.id]);
+  }, [showComments, refreshPostData, lastRefreshed]);
 
-  const handleReactionChange = (reactionData) => {
-    setTimeout(() => {
-      refreshPostData();
-    }, 500);
-  };
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      let wsSubscription = null;
+
+      const setupWebSocketConnection = async () => {
+        try {
+          await WebSocketService.waitForConnection(3000);
+
+          wsSubscription = WebSocketService.subscribeToPostUpdates(
+            post.id,
+            (update) => {
+              if (update.type === "REACTION" || update.type === "COMMENT") {
+                if (update.type === "COMMENT") {
+                  if (update.action === "ADD") {
+                    setCommentCount((prev) => prev + 1);
+                  } else if (update.action === "DELETE") {
+                    setCommentCount((prev) => Math.max(0, prev - 1));
+                  }
+                } else {
+                  setTimeout(() => debouncedRefresh(true), 300);
+                }
+              }
+            }
+          );
+
+          const response = await axiosInstance.getCommentCount(post.id);
+          setCommentCount(response.data.count);
+        } catch (error) {
+          console.warn(`Failed to setup WebSocket for post ${post.id}:`, error);
+        }
+      };
+
+      setupWebSocketConnection();
+
+      return () => {
+        if (wsSubscription) wsSubscription();
+      };
+    }
+  }, [isAuthenticated, user, post.id, debouncedRefresh]);
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
@@ -210,16 +355,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     const newShowState = !showComments;
     setShowComments(newShowState);
 
-    // Always show comment input when showing comments
     if (newShowState) {
       setShowCommentInput(true);
-      refreshPostData(); // Refresh post data to get latest comments
+      refreshPostData();
     }
   };
 
   const handleCommentCountChange = (newCount) => {
     setCommentCount(newCount);
-    // Also update the parent component if needed
     if (onPostUpdated) {
       onPostUpdated({ ...post, comments: new Array(newCount) });
     }
@@ -233,59 +376,25 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
     if (!content) return "";
 
     const formattedContent = content
-      // Format code blocks with ```
       .replace(
         /```([\s\S]*?)```/g,
         '<pre class="bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre"><code>$1</code></pre>'
       )
-      // Format inline code with `
       .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
-      // Format bold text with **
       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      // Format italic text with *
       .replace(/\*(.*?)\*/g, "<em>$1</em>");
 
     return formattedContent;
   };
 
-  useEffect(() => {
-    if (isAuthenticated && user?.id) {
-      // Subscribe to comment updates for this post
-      const subscription = WebSocketService.subscribeToComments(
-        post.id,
-        (update) => {
-          if (update.type === "ADD") {
-            setCommentCount((prev) => prev + 1);
-          } else if (update.type === "DELETE") {
-            setCommentCount((prev) => Math.max(0, prev - 1));
-          }
-        }
-      );
-
-      // Fetch initial comment count
-      const fetchCommentCount = async () => {
-        try {
-          const response = await axiosInstance.get(
-            `/api/comments/count/${post.id}`
-          );
-          setCommentCount(response.data.count);
-        } catch (error) {
-          console.error("Error fetching comment count:", error);
-        }
-      };
-
-      fetchCommentCount();
-
-      // Cleanup subscription on unmount
-      return () => {
-        WebSocketService.unsubscribeFromComments(post.id);
-      };
-    }
-  }, [isAuthenticated, user, post.id]);
+  const commentsKey = `comments-${post.id}-${showComments}`;
 
   return (
-    <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 mb-6 overflow-hidden border border-gray-100">
-      {/* Post Header with User Info and Options */}
+    <div
+      className={`bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 mb-6 overflow-hidden border border-gray-100 ${
+        quietUpdate ? "transition-none" : ""
+      }`}
+    >
       <div className="flex items-center justify-between p-5 border-b border-gray-50">
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
@@ -326,7 +435,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
           </div>
         </div>
 
-        {/* Post Options Menu */}
         {user && (
           <div className="relative">
             <button
@@ -431,7 +539,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         )}
       </div>
 
-      {/* Post Content */}
       <div className="px-5 py-4">
         {isEditing ? (
           <form onSubmit={handleUpdateSubmit} className="space-y-4">
@@ -546,15 +653,15 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
           </form>
         ) : (
           <>
-            {/* Post Text Content */}
             <div
               className="text-gray-800 mb-4 leading-relaxed"
               dangerouslySetInnerHTML={{
-                __html: formatContent(post.content).split("\n").join("<br />"),
+                __html: formatContent(post.content)
+                  .split("\n")
+                  .join("<br />"),
               }}
             />
 
-            {/* Post Media Content */}
             <div className="space-y-4 mt-3">
               {post.videoUrl && (
                 <div className="rounded-lg overflow-hidden shadow-sm">
@@ -584,15 +691,13 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                     return (
                       <div
                         key={index}
-                        className={`
-                          rounded-lg overflow-hidden shadow-sm border border-gray-100 
-                          ${post.imageUrls.length === 1 ? "col-span-1" : ""}
-                          ${
-                            post.imageUrls.length === 3 && index === 0
-                              ? "col-span-2"
-                              : ""
-                          }
-                        `}
+                        className={`rounded-lg overflow-hidden shadow-sm border border-gray-100 ${
+                          post.imageUrls.length === 1 ? "col-span-1" : ""
+                        } ${
+                          post.imageUrls.length === 3 && index === 0
+                            ? "col-span-2"
+                            : ""
+                        }`}
                       >
                         <img
                           src={mediaUrls[mediaId] || getFullUrl(url)}
@@ -614,10 +719,8 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         )}
       </div>
 
-      {/* Post Engagement Section */}
       <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
         <div className="flex items-center justify-between">
-          {/* Enhanced Like Button with Animation */}
           <div className="relative">
             <ReactionButton
               postId={post.id}
@@ -653,7 +756,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                       />
                     </svg>
 
-                    {/* Heart Animation on Click */}
                     {liked && (
                       <span className="heart-animation absolute inset-0 flex items-center justify-center">
                         <svg
@@ -771,7 +873,6 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         </div>
       </div>
 
-      {/* Comments Section */}
       {showComments && (
         <div className="bg-gray-50 border-t border-gray-100 px-5 py-4">
           <Comments
@@ -779,12 +880,11 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
             postOwnerId={post.userId}
             showInput={showCommentInput}
             onCommentCountChange={handleCommentCountChange}
-            key={`comments-${post.id}-${showComments}-${lastRefreshed}`}
+            key={commentsKey}
           />
         </div>
       )}
 
-      {/* Report Modal */}
       <ReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
