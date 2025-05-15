@@ -6,6 +6,7 @@ import AdminSidebar from "../components/AdminSidebar"; // Import AdminSidebar co
 
 function AdminUserManagement() {
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(""); // Add success state for messages
@@ -16,6 +17,11 @@ function AdminUserManagement() {
   const [editDialog, setEditDialog] = useState({ isOpen: false, userData: null });
   const [roleDialog, setRoleDialog] = useState({ isOpen: false, userId: null, currentRole: "" });
   const navigate = useNavigate();
+  
+  // New state for search and filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -43,6 +49,11 @@ function AdminUserManagement() {
     checkAdminAccess();
   }, [navigate]);
 
+  // Apply filters whenever users, search query, or filters change
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchQuery, roleFilter, statusFilter]);
+
   const fetchUsers = async () => {
     try {
       // Try to fetch real data
@@ -61,6 +72,36 @@ function AdminUserManagement() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // New function to filter users based on search query and filters
+  const filterUsers = () => {
+    let result = [...users];
+
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        user => 
+          user.firstName?.toLowerCase().includes(query) || 
+          user.lastName?.toLowerCase().includes(query) || 
+          user.email?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply role filter
+    if (roleFilter !== "all") {
+      const filterRole = roleFilter === "admin" ? "ROLE_ADMIN" : "ROLE_USER";
+      result = result.filter(user => user.role === filterRole);
+    }
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      const isEnabled = statusFilter === "active";
+      result = result.filter(user => user.enabled === isEnabled);
+    }
+
+    setFilteredUsers(result);
   };
 
   const handleToggleUserStatus = async (userId, currentStatus) => {
@@ -339,10 +380,31 @@ function AdminUserManagement() {
     });
   };
 
+  // Handle search input change
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
+  // Handle role filter change
+  const handleRoleFilterChange = (e) => {
+    setRoleFilter(e.target.value);
+  };
+
+  // Handle status filter change
+  const handleStatusFilterChange = (e) => {
+    setStatusFilter(e.target.value);
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setSearchQuery("");
+    setRoleFilter("all");
+    setStatusFilter("all");
+  };
+
   if (loading) {
     return (
       <>
-        
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
@@ -352,7 +414,6 @@ function AdminUserManagement() {
 
   return (
     <>
-     
       <div className="flex">
         {/* Replace the existing sidebar with AdminSidebar component */}
         <AdminSidebar user={user} />
@@ -387,115 +448,253 @@ function AdminUserManagement() {
                 </Link>
               </div>
               
-              {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
+              {/* Enhanced search and filter section with animations */}
+              <div className="mb-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 transform hover:shadow-xl">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4">
+                  <h2 className="text-white text-lg font-medium flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    Search & Filters
+                  </h2>
+                </div>
+                
+                <div className="p-5">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+                    {/* Animated search input */}
+                    <div className="col-span-1 md:col-span-2 transition-all duration-300 transform hover:scale-[1.02]">
+                      <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                        Search Users
+                      </label>
+                      <div className="mt-1 relative rounded-md shadow-sm group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <svg className="h-5 w-5 text-gray-400 group-hover:text-indigo-500 transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        </div>
+                        <input
+                          type="text"
+                          id="search"
+                          value={searchQuery}
+                          onChange={handleSearchChange}
+                          placeholder="Search by name or email"
+                          className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 pr-12 sm:text-sm border-gray-300 rounded-md transition-all duration-300 hover:border-indigo-300"
+                        />
+                        {searchQuery && (
+                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                            <button
+                              onClick={() => setSearchQuery("")}
+                              className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors duration-200"
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
+                    
+                    {/* Role filter with animation */}
+                    <div className="transition-all duration-300 transform hover:scale-[1.02]">
+                      <label htmlFor="role-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                        Filter by Role
+                      </label>
+                      <div className="mt-1 relative">
+                        <select
+                          id="role-filter"
+                          value={roleFilter}
+                          onChange={handleRoleFilterChange}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-all duration-300 hover:border-indigo-300"
+                        >
+                          <option value="all">All Roles</option>
+                          <option value="user">Users</option>
+                          <option value="admin">Admins</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                          <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Status filter with animation */}
+                    <div className="transition-all duration-300 transform hover:scale-[1.02]">
+                      <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                        Filter by Status
+                      </label>
+                      <div className="mt-1 relative">
+                        <select
+                          id="status-filter"
+                          value={statusFilter}
+                          onChange={handleStatusFilterChange}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-all duration-300 hover:border-indigo-300"
+                        >
+                          <option value="all">All Status</option>
+                          <option value="active">Active</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                          <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-              
-              {success && (
-                <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
+                  
+                  {/* Filter results and reset button with animation */}
+                  <div className="mt-6 flex flex-col sm:flex-row justify-between items-center border-t pt-4 border-gray-200">
+                    <div className="flex items-center mb-3 sm:mb-0">
+                      <span className="inline-flex items-center justify-center px-3 py-1 mr-2 text-xs font-medium leading-none text-indigo-800 bg-indigo-100 rounded-full animate-pulse">
+                        {filteredUsers.length}
+                      </span>
+                      <p className="text-sm text-gray-500">
+                        users found {users.length > 0 ? `out of ${users.length}` : ''}
+                      </p>
                     </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-green-700">{success}</p>
-                    </div>
+                    
+                    {(searchQuery || roleFilter !== "all" || statusFilter !== "all") && (
+                      <button 
+                        onClick={resetFilters}
+                        className="group px-4 py-2 rounded-md border border-transparent text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105 flex items-center"
+                      >
+                        <svg className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reset All Filters
+                      </button>
+                    )}
                   </div>
+                  
+                  {/* Active filters display */}
+                  {(searchQuery || roleFilter !== "all" || statusFilter !== "all") && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-gray-500">Active filters:</span>
+                      
+                      {searchQuery && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Search: {searchQuery}
+                          <button onClick={() => setSearchQuery("")} className="ml-1.5 text-blue-400 hover:text-blue-600">
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      )}
+                      
+                      {roleFilter !== "all" && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          Role: {roleFilter === "admin" ? "Admin" : "User"}
+                          <button onClick={() => setRoleFilter("all")} className="ml-1.5 text-purple-400 hover:text-purple-600">
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      )}
+                      
+                      {statusFilter !== "all" && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Status: {statusFilter === "active" ? "Active" : "Blocked"}
+                          <button onClick={() => setStatusFilter("all")} className="ml-1.5 text-green-400 hover:text-green-600">
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
               
               <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Role
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map((user) => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10">
-                              <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-700">
-                                {user.firstName?.[0] || "U"}
+                {filteredUsers.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">
+                    No users found matching your search criteria.
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Email
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Role
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10">
+                                <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-700">
+                                  {user.firstName?.[0] || "U"}
+                                </div>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
                               </div>
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => openRoleConfirmation(user.id, user.role)}
-                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              user.role === "ROLE_ADMIN" 
-                                ? "bg-purple-100 text-purple-800" 
-                                : "bg-blue-100 text-blue-800 cursor-pointer hover:opacity-80"
-                            }`}>
-                            {user.role === "ROLE_ADMIN" ? "Admin" : "User"}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button 
-                            onClick={() => openStatusConfirmation(user.id, user.enabled)}
-                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer hover:opacity-80 ${
-                              user.enabled 
-                                ? "bg-green-100 text-green-800" 
-                                : "bg-red-100 text-red-800"
-                            }`}>
-                            {user.enabled ? "Active" : "Blocked"}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
-                          <button 
-                            onClick={() => openEditDialog(user)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => openDeleteConfirmation(user.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">{user.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => openRoleConfirmation(user.id, user.role)}
+                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                user.role === "ROLE_ADMIN" 
+                                  ? "bg-purple-100 text-purple-800" 
+                                  : "bg-blue-100 text-blue-800 cursor-pointer hover:opacity-80"
+                              }`}>
+                              {user.role === "ROLE_ADMIN" ? "Admin" : "User"}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button 
+                              onClick={() => openStatusConfirmation(user.id, user.enabled)}
+                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer hover:opacity-80 ${
+                                user.enabled 
+                                  ? "bg-green-100 text-green-800" 
+                                  : "bg-red-100 text-red-800"
+                              }`}>
+                              {user.enabled ? "Active" : "Blocked"}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
+                            <button 
+                              onClick={() => openEditDialog(user)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => openDeleteConfirmation(user.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>
