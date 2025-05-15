@@ -17,4 +17,6 @@ public interface UserRepository extends MongoRepository<User, String> {
     boolean existsById(String id);
     int countByCreatedAtGreaterThanEqual(Date date);
     int countByEnabledTrue();
+    List<User> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+        String firstName, String lastName, String email);
 }
