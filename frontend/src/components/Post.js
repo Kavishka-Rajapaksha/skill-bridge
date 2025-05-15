@@ -5,9 +5,11 @@ import ReactionButton from "./ReactionButton";
 import ReportModal from "./ReportModal";
 import WebSocketService from "../services/WebSocketService";
 import { AuthContext } from "../context/AuthContext";
+import { usePopup } from "../context/PopupContext";
 
 function Post({ post, onPostDeleted, onPostUpdated }) {
   const { isAuthenticated } = useContext(AuthContext);
+  const { showConfirmation, showPopup } = usePopup();
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
@@ -284,25 +286,48 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
   }, [isAuthenticated, user, post.id, debouncedRefresh]);
 
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
-
-    try {
-      setDeleting(true);
-      if (isUserAdmin && user.id !== post.userId) {
-        await axiosInstance.delete(
-          `/api/posts/${post.id}?userId=${user.id}&isAdmin=true`
-        );
-      } else {
-        await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}`);
-      }
-      onPostDeleted?.(post.id);
-      setShowMenu(false);
-    } catch (error) {
-      console.error("Error deleting post:", error);
-      alert("Failed to delete post. Please try again.");
-    } finally {
-      setDeleting(false);
-    }
+    showConfirmation({
+      title: "Delete Post",
+      message: "Are you sure you want to delete this post?",
+      onConfirm: async () => {
+        try {
+          setDeleting(true);
+          if (isUserAdmin && user.id !== post.userId) {
+            await axiosInstance.delete(
+              `/api/posts/${post.id}?userId=${user.id}&isAdmin=true`
+            );
+          } else {
+            await axiosInstance.delete(`/api/posts/${post.id}?userId=${user.id}`);
+          }
+          onPostDeleted?.(post.id);
+          setShowMenu(false);
+          showPopup({
+            message: "Post deleted successfully!",
+            type: "success",
+            duration: 4000,
+            icon: (
+              <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ),
+            animation: "slide-up"
+          });
+        } catch (error) {
+          console.error("Error deleting post:", error);
+          showPopup({
+            message: "Failed to delete post. Please try again.",
+            type: "error",
+            duration: 4000
+          });
+        } finally {
+          setDeleting(false);
+        }
+      },
+      type: "danger",
+      confirmText: "Delete",
+      cancelText: "Cancel"
+    });
+    setShowMenu(false);
   };
 
   const handleEdit = () => {
