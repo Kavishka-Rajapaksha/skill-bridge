@@ -39,6 +39,12 @@ axiosInstance.interceptors.request.use(
         const credentials = btoa(`${user.email}:${user.rawPassword}`);
         config.headers.Authorization = `Basic ${credentials}`;
       }
+      
+      // Add token if available
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
 
       if (config.url?.includes("/api/media/")) {
         config.responseType = "blob";
