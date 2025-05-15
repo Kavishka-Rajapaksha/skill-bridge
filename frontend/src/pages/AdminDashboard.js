@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axiosInstance from "../utils/axios";
-import Header from "../components/Header";
 import AdminSidebar from "../components/AdminSidebar";
 
 function AdminDashboard() {
@@ -144,10 +143,30 @@ function AdminDashboard() {
         setRecentReports([]);
       }
       
+      // Fetch recent users - improved approach using AdminApiService
       try {
-        const recentUsersRes = await axiosInstance.get("/api/admin/users/recent");
-        recentUsersData = recentUsersRes.data;
-      } catch (userError) {}
+        const AdminApiService = (await import('../utils/apiService')).default;
+        recentUsersData = await AdminApiService.fetchRecentUsers(5);
+        
+        if (!recentUsersData || recentUsersData.length === 0) {
+          // Fallback to direct API call if service fails
+          const recentUsersRes = await axiosInstance.get("/api/admin/users/recent?limit=5");
+          recentUsersData = recentUsersRes.data;
+        }
+      } catch (userError) {
+        console.error("Error fetching recent users:", userError);
+        // Try alternative endpoints
+        try {
+          const allUsersRes = await axiosInstance.get("/api/admin/users");
+          if (Array.isArray(allUsersRes.data)) {
+            recentUsersData = allUsersRes.data
+              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+              .slice(0, 5);
+          }
+        } catch (fallbackError) {
+          console.error("Failed fallback for recent users:", fallbackError);
+        }
+      }
 
       try {
         const recentPostsRes = await axiosInstance.get("/api/admin/posts/recent");
@@ -702,43 +721,6 @@ function AdminDashboard() {
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        {/* Top navigation */}
-        <div className="bg-white shadow-sm sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex">
-                <div className="flex-shrink-0 flex items-center">
-                  <h1 className="text-xl font-bold text-gray-900">SkillBridge Admin</h1>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <div className="ml-4 flex items-center md:ml-6">
-                  <button className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none">
-                    <span className="sr-only">View notifications</span>
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                  </button>
-
-                  <div className="ml-3 relative">
-                    <div className="flex items-center">
-                      <button className="max-w-xs bg-white rounded-full flex items-center text-sm focus:outline-none hover:ring-2 hover:ring-offset-2 hover:ring-indigo-500">
-                        <span className="sr-only">Open user menu</span>
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                          {user?.firstName?.charAt(0) || 'A'}
-                        </div>
-                      </button>
-                      <span className="ml-2 text-sm font-medium text-gray-700 hidden md:block">
-                        {user?.firstName || 'Admin'} {user?.lastName || ''}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div className="py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Dashboard header */}
@@ -934,7 +916,7 @@ function AdminDashboard() {
             <ReportSummaries stats={reportStats} recentReports={recentReports} />
 
             <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
-              {/* Recent Users Table */}
+              {/* Recent Users Table - Enhanced version */}
               <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <div className="px-6 py-5 border-b border-gray-200">
                   <div className="flex items-center justify-between">
@@ -945,43 +927,68 @@ function AdminDashboard() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Joined
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {recentUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50 transition-colors duration-150">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
-                                {user.firstName?.charAt(0) || 'U'}
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">{user.email}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">{new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                          </td>
+                  {recentUsers && recentUsers.length > 0 ? (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Joined
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {recentUsers.map((user) => (
+                          <tr key={user.id || `user-${Math.random()}`} className="hover:bg-gray-50 transition-colors duration-150">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
+                                  {user.firstName?.charAt(0) || user.name?.charAt(0) || 'U'}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {user.firstName && user.lastName ? 
+                                      `${user.firstName} ${user.lastName}` : 
+                                      user.name || 'Unnamed User'}
+                                  </div>
+                                  {user.role && (
+                                    <div className="text-xs text-gray-500">{user.role.replace('ROLE_', '')}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">{user.email}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">
+                                {user.createdAt ? 
+                                  new Date(user.createdAt).toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  }) : 
+                                  'Unknown date'}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="text-center py-8">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
+                      <p className="mt-1 text-sm text-gray-500">The system couldn't retrieve any recent users.</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

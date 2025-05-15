@@ -15,6 +15,7 @@ class AdminApiService {
       // Try the specific recent users endpoint first
       const response = await axiosInstance.get(`/api/admin/users/recent?limit=${limit}`);
       
+      // If the response has data in expected format
       if (response.data && Array.isArray(response.data)) {
         return response.data;
       }
@@ -34,6 +35,14 @@ class AdminApiService {
       
       if (allUsers.data && allUsers.data.users && Array.isArray(allUsers.data.users)) {
         return allUsers.data.users
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, limit);
+      }
+      
+      // If no users found yet, try a different endpoint for greater compatibility
+      const alternateUsers = await axiosInstance.get('/api/users');
+      if (Array.isArray(alternateUsers.data)) {
+        return alternateUsers.data
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
           .slice(0, limit);
       }
