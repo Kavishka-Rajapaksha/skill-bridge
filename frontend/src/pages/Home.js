@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import CreatePost from "../components/CreatePost";
 import Post from "../components/Post";
 import Header from "../components/Header";
@@ -10,6 +10,9 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const fetchTimeoutRef = useRef(null);
+  const isFetchingRef = useRef(false);
+  const [silentRefresh, setSilentRefresh] = useState(false);
 
   const fetchUserData = async () => {
     try {
@@ -48,11 +51,26 @@ function Home() {
     };
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async (silent = false) => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) return;
+    
     try {
-      console.log("Fetching posts...");
+      isFetchingRef.current = true;
+      
+      if (silent) {
+        setSilentRefresh(true);
+      } else {
+        console.log("Fetching posts...");
+      }
+      
       const response = await axiosInstance.get("/api/posts");
-      console.log("Posts API response:", response.data);
+      
+      if (silent) {
+        console.log("Silent refresh completed");
+      } else {
+        console.log("Posts API response:", response.data);
+      }
       
       // Process posts to ensure user information is correctly displayed
       const processedPosts = response.data.map(post => {
@@ -66,21 +84,55 @@ function Home() {
         return post;
       });
       
-      setPosts(processedPosts);
+      // Compare old and new posts to see if we should update state
+      if (silent) {
+        const currentPostIds = posts.map(p => p.id);
+        const newPostIds = processedPosts.map(p => p.id);
+        
+        // Check if there are new posts or if post order changed
+        const hasNewPosts = newPostIds.some(id => !currentPostIds.includes(id));
+        const postOrderChanged = !newPostIds.every((id, index) => currentPostIds[index] === id);
+        
+        if (hasNewPosts || postOrderChanged) {
+          setPosts(processedPosts);
+        }
+      } else {
+        setPosts(processedPosts);
+      }
     } catch (error) {
-      console.error("Error fetching posts:", error);
-      if (error.response) {
-        console.error("Response status:", error.response.status);
-        console.error("Response data:", error.response.data);
+      if (!silent) {
+        console.error("Error fetching posts:", error);
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+        }
       }
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
+      
+      // Reset silent refresh flag after a short delay
+      if (silent) {
+        setTimeout(() => setSilentRefresh(false), 100);
+      }
     }
-  };
+  }, [posts]);
 
   useEffect(() => {
     fetchUserData();
     fetchPosts();
+    
+    // Set up periodic silent refresh
+    const intervalId = setInterval(() => {
+      fetchPosts(true); // Silent refresh
+    }, 120000); // Every 2 minutes
+    
+    return () => {
+      clearInterval(intervalId);
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handlePostCreated = (newPost) => {
@@ -110,26 +162,38 @@ function Home() {
     setPosts(prevPosts => [newPost, ...prevPosts]);
     console.log("Posts state updated. Total posts:", posts.length + 1);
     
-    // Refresh posts from server to ensure consistency
-    setTimeout(() => {
-      fetchPosts();
-    }, 1000);
+    // Use a debounced refresh to update from server
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchPosts(true); // Silent refresh
+    }, 3000);
   };
 
   const handlePostDeleted = (postId) => {
     setPosts(posts.filter((post) => post.id !== postId));
   };
 
-  const handlePostUpdated = (updatedPost) => {
-    setPosts(
-      posts.map((post) => (post.id === updatedPost.id ? updatedPost : post))
+  const handlePostUpdated = useCallback((updatedPost) => {
+    setPosts(prevPosts => 
+      prevPosts.map(post => post.id === updatedPost.id ? 
+        { ...post, ...updatedPost, quietUpdate: true } : post)
     );
-  };
+    
+    // Clean up the quietUpdate flag after a moment
+    setTimeout(() => {
+      setPosts(prevPosts => 
+        prevPosts.map(post => post.id === updatedPost.id ? 
+          { ...post, quietUpdate: false } : post)
+      );
+    }, 100);
+  }, []);
 
   if (loading) {
     return (
       <>
-        
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
@@ -139,8 +203,7 @@ function Home() {
 
   return (
     <>
-     
-      <div className="max-w-2xl mx-auto py-8 px-4">
+      <div className={`max-w-2xl mx-auto py-8 px-4 ${silentRefresh ? 'transition-none' : ''}`}>
         <CreatePost 
           onPostCreated={handlePostCreated} 
           debugFn={debugCreatePost}
