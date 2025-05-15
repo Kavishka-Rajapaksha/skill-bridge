@@ -6,6 +6,7 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
   const [liked, setLiked] = useState(false);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [optimisticUpdate, setOptimisticUpdate] = useState(null);
 
   useEffect(() => {
     const checkReactionStatus = async () => {
@@ -26,29 +27,66 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
   }, [postId, userId]);
 
   useEffect(() => {
-    WebSocketService.setReactionCallback((update) => {
+    const callback = (update) => {
       if (update.postId === postId) {
-        setLiked(update.userLiked);
-        setCount(update.reactionCount);
-        setLoading(false);
+        // Only update if this is a server-confirmed update (not our optimistic one)
+        // or if we had an optimistic update that needs to be reconciled
+        if (!optimisticUpdate || Date.now() - optimisticUpdate > 7000) {
+          setLiked(update.userLiked);
+          setCount(update.reactionCount);
+          setLoading(false);
+          setOptimisticUpdate(null);
+        }
       }
-    });
-  }, [postId]);
+    };
+    
+    WebSocketService.setReactionCallback(callback);
+    
+    return () => {
+      // Clean up by setting an empty callback if component unmounts
+      WebSocketService.setReactionCallback(() => {});
+    };
+  }, [postId, optimisticUpdate]);
 
   const handleReaction = async () => {
     if (loading) return;
 
     try {
+      // Optimistically update UI immediately
+      const newLikedState = !liked;
+      const newCount = newLikedState ? count + 1 : Math.max(0, count - 1);
+      
+      setLiked(newLikedState);
+      setCount(newCount);
       setLoading(true);
+      setOptimisticUpdate(Date.now());
+      
+      // Notify parent about the change
+      if (onReactionChange) {
+        onReactionChange({ liked: newLikedState, count: newCount });
+      }
 
+      // Send actual request in the background
       await axiosInstance.post("/api/reactions/toggle", null, {
         params: { userId, postId },
       });
-
-      // Don't update state here - wait for WebSocket update
+      
+      // Success! Keep the optimistic update
+      setLoading(false);
+      
+      // We'll let WebSocket reconcile any inconsistencies if needed
     } catch (error) {
       console.error("Error toggling reaction:", error);
+      // Revert optimistic update on error
+      setLiked(!liked);
+      setCount(liked ? count + 1 : Math.max(0, count - 1));
       setLoading(false);
+      setOptimisticUpdate(null);
+      
+      // Also notify parent about the revert
+      if (onReactionChange) {
+        onReactionChange({ liked, count: liked ? count + 1 : Math.max(0, count - 1) });
+      }
     }
   };
 
@@ -72,7 +110,7 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       }`}
     >
       <svg
-        className="w-6 h-6"
+        className={`w-6 h-6 transition-transform duration-200 ${liked ? "scale-110" : ""}`}
         fill={liked ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"
