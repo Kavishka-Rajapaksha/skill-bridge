@@ -2,6 +2,7 @@ package com.example.backend.controller;
 
 import com.example.backend.model.Group;
 import com.example.backend.service.GroupService;
+import com.example.backend.service.PostService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,9 @@ public class GroupController {
 
     @Autowired
     private GroupService groupService;
+
+    @Autowired
+    private PostService postService; // Add PostService dependency
 
     @PostMapping
     public ResponseEntity<?> createGroup(
@@ -61,6 +65,31 @@ public class GroupController {
             return ResponseEntity.ok(groupService.getUserGroups(userId));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{groupId}/posts")
+    public ResponseEntity<?> getGroupPosts(@PathVariable String groupId) {
+        try {
+            return ResponseEntity.ok(postService.getGroupPosts(groupId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{groupId}")
+    public ResponseEntity<?> getGroupById(@PathVariable String groupId) {
+        try {
+            logger.info("Fetching group: {}", groupId);
+            Group group = groupService.getGroupById(groupId);
+            return ResponseEntity.ok(group);
+        } catch (IllegalArgumentException e) {
+            logger.error("Group not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error fetching group: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to fetch group");
         }
     }
 
