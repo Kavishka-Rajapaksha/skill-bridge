@@ -57,4 +57,19 @@ public class NotificationController {
                     .body("Error marking all notifications as read");
         }
     }
+
+    @DeleteMapping("/{notificationId}")
+    public ResponseEntity<?> deleteNotification(@PathVariable String notificationId) {
+        try {
+            if (notificationId == null || notificationId.isEmpty()) {
+                return ResponseEntity.badRequest().body("Notification ID is required");
+            }
+            notificationService.deleteNotification(notificationId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            logger.severe("Error deleting notification: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error deleting notification");
+        }
+    }
 }

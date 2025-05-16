@@ -148,4 +148,15 @@ public class NotificationService {
     public long getUnreadCount(String userId) {
         return notificationRepository.countByUserIdAndRead(userId, false);
     }
+
+    public void deleteNotification(String notificationId) {
+        try {
+            notificationRepository.findById(notificationId).ifPresent(notification -> {
+                notificationRepository.delete(notification);
+            });
+        } catch (Exception e) {
+            System.err.println("Error deleting notification: " + e.getMessage());
+            throw e;
+        }
+    }
 }

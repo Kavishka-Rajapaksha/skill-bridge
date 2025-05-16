@@ -161,6 +161,28 @@ class AdminApiService {
       throw error;
     }
   }
+
+  /**
+   * Delete notification with request cancellation support
+   * @param {string} notificationId The ID of the notification to delete
+   * @returns {Promise<void>}
+   */
+  static async deleteNotification(notificationId) {
+    // Create cancel token source
+    const source = axiosInstance.CancelToken.source();
+    
+    try {
+      await axiosInstance.delete(`/api/notifications/${notificationId}`, {
+        cancelToken: source.token
+      });
+    } catch (error) {
+      // Don't throw error if request was cancelled
+      if (!axiosInstance.isCancel(error)) {
+        console.error("Error deleting notification:", error);
+        throw error;
+      }
+    }
+  }
 }
 
 export default AdminApiService;

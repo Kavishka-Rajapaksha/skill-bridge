@@ -38,19 +38,24 @@ function Header() {
       if (query.length >= 2) {
         setIsSearching(true);
         setSearchResults([]); // Clear old results while searching
-        
+
         try {
           console.log("Initiating search for:", query);
           const results = await UserSearchService.searchUsers(query);
           console.log("Search results received:", results);
-          
+
           if (Array.isArray(results) && results.length > 0) {
             setSearchResults(results);
           } else {
             // If no results but we have a valid query, try direct fetch
             console.log("No results, trying direct search");
-            const directResults = await axiosInstance.get(`/api/users?search=${encodeURIComponent(query)}`);
-            if (Array.isArray(directResults.data) && directResults.data.length > 0) {
+            const directResults = await axiosInstance.get(
+              `/api/users?search=${encodeURIComponent(query)}`
+            );
+            if (
+              Array.isArray(directResults.data) &&
+              directResults.data.length > 0
+            ) {
               setSearchResults(directResults.data);
             } else {
               setSearchResults([]);
@@ -193,6 +198,28 @@ function Header() {
     }
   };
 
+  const handleDeleteNotification = useCallback(
+    debounce(async (notificationId) => {
+      try {
+        await axiosInstance.delete(`/api/notifications/${notificationId}`);
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+        // Also update unread count if the deleted notification was unread
+        const wasUnread = notifications.find(
+          (n) => n.id === notificationId && !n.read
+        );
+        if (wasUnread) {
+          setUnreadCount((prev) => Math.max(0, prev - 1));
+        }
+      } catch (error) {
+        if (!axiosInstance.isCancel(error)) {
+          console.error("Error deleting notification:", error);
+          // Error message is logged to console instead of showing a popup
+        }
+      }
+    }, 300),
+    [notifications]
+  ); // 300ms debounce
+
   const handleLogout = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("token");
@@ -320,7 +347,7 @@ function Header() {
                   ) : searchTerm.length >= 2 ? (
                     <div className="py-4 px-4 text-center text-gray-500">
                       <p>No users found matching "{searchTerm}"</p>
-                      <button 
+                      <button
                         className="mt-2 text-sm text-blue-500 hover:text-blue-700"
                         onClick={() => debouncedSearch(searchTerm)}
                       >
@@ -445,6 +472,7 @@ function Header() {
                     notifications={notifications}
                     onMarkAsRead={handleMarkAsRead}
                     onMarkAllAsRead={handleMarkAllAsRead}
+                    onDeleteNotification={handleDeleteNotification}
                     onClose={() => setShowNotifications(false)}
                     unreadCount={unreadCount}
                   />
