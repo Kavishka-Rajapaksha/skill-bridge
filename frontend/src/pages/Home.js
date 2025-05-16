@@ -73,19 +73,17 @@ function Home() {
           console.log("Posts API response:", response.data);
         }
 
-        // Filter out shared posts from the response
-        const processedPosts = response.data
-          .filter((post) => !post.sharedFrom) // Only show non-shared posts
-          .map((post) => {
-            if (!post.userName || post.userName === "Deleted User") {
-              if (post.userFirstName || post.userLastName) {
-                post.userName = `${post.userFirstName || ""} ${
-                  post.userLastName || ""
-                }`.trim();
-              }
+        // Process the posts but don't filter out shared posts
+        const processedPosts = response.data.map((post) => {
+          if (!post.userName || post.userName === "Deleted User") {
+            if (post.userFirstName || post.userLastName) {
+              post.userName = `${post.userFirstName || ""} ${
+                post.userLastName || ""
+              }`.trim();
             }
-            return post;
-          });
+          }
+          return post;
+        });
 
         // Compare old and new posts to see if we should update state
         if (silent) {

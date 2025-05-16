@@ -19,12 +19,14 @@ public class PostResponse {
     private int likes;
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt;
+    private Map<String, Integer> reactionCounts;
+    private String groupId;
     private String sharedFrom;
     private String sharedByUserId;
     private String sharedByUserName;
     private String sharedByUserProfilePicture;
     private LocalDateTime sharedAt;
-    private String originalUserId; // Add this field
+    private String originalUserId;
     private String originalUserName;
     private String originalUserProfilePicture;
     private LocalDateTime originalCreatedAt;
@@ -46,6 +48,9 @@ public class PostResponse {
         this.likes = post.getLikes();
         this.comments = post.getComments();
         this.createdAt = post.getCreatedAt();
+        this.reactionCounts = post.getReactionCounts();
+        this.groupId = post.getGroupId();
+        this.sharedFrom = post.getSharedFrom();
     }
 
     // Getters and setters
@@ -143,6 +148,22 @@ public class PostResponse {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Map<String, Integer> getReactionCounts() {
+        return reactionCounts;
+    }
+
+    public void setReactionCounts(Map<String, Integer> reactionCounts) {
+        this.reactionCounts = reactionCounts;
+    }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
     }
 
     public String getSharedFrom() {

@@ -71,9 +71,12 @@ public class GroupController {
     @GetMapping("/{groupId}/posts")
     public ResponseEntity<?> getGroupPosts(@PathVariable String groupId) {
         try {
+            logger.info("Fetching posts for group: {}", groupId);
             return ResponseEntity.ok(postService.getGroupPosts(groupId));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            logger.error("Error fetching group posts: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to fetch group posts: " + e.getMessage());
         }
     }
 

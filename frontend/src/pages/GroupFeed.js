@@ -52,48 +52,54 @@ function GroupFeed() {
       try {
         const response = await axiosInstance.get(
           `/api/groups/${groupId}/posts`,
-          { signal: abortController.signal }
+          {
+            signal: abortController.signal,
+          }
         );
 
-        // Enhanced processing for shared posts
-        const processedPosts = (response.data || []).map((post) => {
-          if (post.sharedFrom) {
-            return {
-              ...post,
-              isShared: true,
-              // Original post details (maintain original data)
-              originalUserName: post.originalUserName,
-              originalUserProfilePicture: post.originalUserProfilePicture,
-              originalCreatedAt: post.originalCreatedAt,
-              // Sharing user details (maintain sharing data)
-              sharedByUserName: post.sharedByUserName,
-              sharedByUserProfilePicture: post.sharedByUserProfilePicture,
-              sharedByUserId: post.sharedByUserId,
-              sharedAt: post.sharedAt,
-              // Current post details
-              userName: post.userName,
-              userProfilePicture: post.userProfilePicture,
-              userId: post.userId,
-            };
-          }
-          return post;
-        });
+        if (response.data && Array.isArray(response.data)) {
+          // Create a Map to track unique posts by ID
+          const uniquePostsMap = new Map();
 
-        // Sort posts by creation/shared date
-        const sortedPosts = processedPosts.sort((a, b) => {
-          const dateA = a.sharedAt || a.createdAt;
-          const dateB = b.sharedAt || b.createdAt;
-          return new Date(dateB) - new Date(dateA);
-        });
+          // Process posts to handle shared posts and ensure uniqueness
+          response.data.forEach((post) => {
+            // For posts with same ID, only keep the most recent one
+            if (
+              !uniquePostsMap.has(post.id) ||
+              uniquePostsMap.get(post.id).createdAt < post.createdAt
+            ) {
+              // Make sure shared posts have proper display names
+              if (post.sharedFrom) {
+                if (!post.originalUserName && post.originalUserId) {
+                  post.originalUserName = `User ${post.originalUserId.substring(
+                    0,
+                    6
+                  )}`;
+                }
 
-        setPosts(sortedPosts);
-      } catch (error) {
-        if (error.name === "CanceledError") {
-          console.log("Request was canceled");
-          return;
+                if (!post.sharedByUserName && post.sharedByUserId) {
+                  post.sharedByUserName = `User ${post.sharedByUserId.substring(
+                    0,
+                    6
+                  )}`;
+                }
+              }
+
+              uniquePostsMap.set(post.id, post);
+            }
+          });
+
+          // Convert Map back to array
+          const processedPosts = Array.from(uniquePostsMap.values());
+
+          setPosts(processedPosts);
+        } else {
+          setPosts([]);
         }
+      } catch (error) {
+        if (error.name === "AbortError") return;
         console.error("Error fetching group posts:", error);
-        setError(error.response?.data?.message || "Failed to load group posts");
+        setPosts([]);
       }
     };
 
@@ -102,7 +108,7 @@ function GroupFeed() {
     }
 
     return () => {
-      abortController.abort(); // Cleanup on unmount
+      abortController.abort();
     };
   }, [groupId]);
 

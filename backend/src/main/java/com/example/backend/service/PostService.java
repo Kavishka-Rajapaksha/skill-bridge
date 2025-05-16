@@ -218,11 +218,69 @@ public class PostService {
     public List<PostResponse> getGroupPosts(String groupId) {
         try {
             List<Post> posts = postRepository.findByGroupIdOrderByCreatedAtDesc(groupId);
-            return posts.stream()
-                    .map(this::convertToPostResponse)
-                    .collect(Collectors.toList());
+            List<PostResponse> responses = new ArrayList<>();
+
+            for (Post post : posts) {
+                PostResponse response = convertToPostResponse(post);
+
+                // If this is a shared post, enrich with original post details
+                if (post.getSharedFrom() != null) {
+                    try {
+                        // Get original post
+                        Post originalPost = postRepository.findById(post.getSharedFrom())
+                                .orElse(null);
+
+                        if (originalPost != null) {
+                            // Set original post content
+                            response.setOriginalContent(originalPost.getContent());
+                            response.setOriginalImageUrls(originalPost.getImageUrls());
+                            response.setOriginalVideoUrl(originalPost.getVideoUrl());
+                            response.setOriginalCreatedAt(originalPost.getCreatedAt());
+
+                            // Set original user details
+                            userRepository.findById(originalPost.getUserId()).ifPresent(originalUser -> {
+                                response.setOriginalUserId(originalUser.getId());
+                                response.setOriginalUserName(
+                                        originalUser.getFirstName() + " " + originalUser.getLastName());
+                                response.setOriginalUserProfilePicture(originalUser.getProfilePicture());
+                            });
+                        }
+
+                        // Make sure current user information is populated correctly
+                        userRepository.findById(post.getUserId()).ifPresent(currentUser -> {
+                            response.setUserId(currentUser.getId());
+                            response.setUserName(currentUser.getFirstName() + " " + currentUser.getLastName());
+                            response.setUserProfilePicture(currentUser.getProfilePicture());
+                        });
+
+                        // Set sharing user details explicitly
+                        userRepository.findById(post.getUserId()).ifPresent(sharingUser -> {
+                            response.setSharedByUserId(sharingUser.getId());
+                            response.setSharedByUserName(sharingUser.getFirstName() + " " + sharingUser.getLastName());
+                            response.setSharedByUserProfilePicture(sharingUser.getProfilePicture());
+                            response.setSharedAt(post.getCreatedAt());
+                        });
+                    } catch (Exception e) {
+                        System.err.println("Error enriching shared post: " + e.getMessage());
+                    }
+                } else {
+                    // Make sure user details are always populated for non-shared posts too
+                    userRepository.findById(post.getUserId()).ifPresent(currentUser -> {
+                        if (response.getUserName() == null || response.getUserName().isEmpty() ||
+                                response.getUserName().equals("Deleted User")) {
+                            response.setUserName(currentUser.getFirstName() + " " + currentUser.getLastName());
+                            response.setUserProfilePicture(currentUser.getProfilePicture());
+                        }
+                    });
+                }
+
+                responses.add(response);
+            }
+
+            return responses;
         } catch (Exception e) {
             System.err.println("Error fetching group posts: " + e.getMessage());
+            e.printStackTrace();
             return Collections.emptyList();
         }
     }
