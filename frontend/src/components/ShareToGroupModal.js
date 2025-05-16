@@ -34,7 +34,7 @@ function ShareToGroupModal({ isOpen, onClose, postId, onSuccess, post }) {
       return;
     }
 
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = JSON.parse(localStorage.getItem("user"));
     if (!user || !user.id) {
       setError("Please log in to share posts");
       return;
