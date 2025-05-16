@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axiosInstance from "../utils/axios";
 
-function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cachedComments }) {
+function Comments({
+  postId,
+  postOwnerId,
+  showInput,
+  onCommentCountChange,
+  cachedComments,
+}) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [editingComment, setEditingComment] = useState(null);
@@ -15,6 +21,12 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
   const [submittingReply, setSubmittingReply] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState({});
   const [reactingToComment, setReactingToComment] = useState(null);
+
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionResults, setMentionResults] = useState([]);
+  const [showMentionResults, setShowMentionResults] = useState(false);
+  const [mentionedUsers, setMentionedUsers] = useState([]);
+  const mentionInputRef = useRef(null);
 
   const user = JSON.parse(localStorage.getItem("user"));
   const isAdmin = user?.role === "ROLE_ADMIN";
@@ -31,7 +43,9 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
     try {
       setFetchingComments(true);
       const response = await axiosInstance.get(
-        `/api/comments/post/${postId}?limit=100&includeReplies=true&hierarchical=true&currentUserId=${user?.id || ''}`,
+        `/api/comments/post/${postId}?limit=100&includeReplies=true&hierarchical=true&currentUserId=${
+          user?.id || ""
+        }`
       );
 
       if (response.data && Array.isArray(response.data)) {
@@ -129,18 +143,96 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
     return count;
   };
 
+  const handleCommentChange = (e) => {
+    const text = e.target.value;
+    setNewComment(text);
+
+    // Look for mention pattern
+    const mentionMatch = text.match(/@(\w*)$/);
+    if (mentionMatch) {
+      const query = mentionMatch[1];
+      setMentionQuery(query);
+      if (query.length > 0) {
+        searchUsers(query);
+        setShowMentionResults(true);
+      } else {
+        setShowMentionResults(false);
+      }
+    } else {
+      setShowMentionResults(false);
+    }
+  };
+
+  const searchUsers = async (query) => {
+    if (query.length < 2) {
+      setMentionResults([]);
+      return;
+    }
+
+    try {
+      const response = await axiosInstance.get(
+        `/api/users/search?query=${query}`
+      );
+      setMentionResults(response.data || []);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      setMentionResults([]);
+    }
+  };
+
+  const insertMention = (user) => {
+    const beforeMention = newComment.substring(0, newComment.lastIndexOf("@"));
+    const afterMention = newComment.substring(
+      newComment.lastIndexOf("@") + mentionQuery.length + 1
+    );
+
+    const updatedComment = `${beforeMention}@${user.firstName}${
+      user.lastName ? user.lastName : ""
+    } ${afterMention}`;
+    setNewComment(updatedComment);
+
+    // Add user to mentioned users list
+    setMentionedUsers([
+      ...mentionedUsers,
+      {
+        id: user.id,
+        name: `${user.firstName}${user.lastName ? " " + user.lastName : ""}`,
+      },
+    ]);
+
+    setShowMentionResults(false);
+    mentionInputRef.current?.focus();
+  };
+
+  const extractMentions = (text) => {
+    const mentionRegex = /@([a-zA-Z0-9]+[a-zA-Z0-9]*)/g;
+    const matches = [];
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      matches.push(match[1]);
+    }
+
+    return matches;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
 
     try {
       setLoading(true);
+
+      // Extract mentions from comment text
+      const extractedMentions = mentionedUsers.map((user) => user.id);
+
       const response = await axiosInstance.post("/api/comments", null, {
         params: {
           postId,
           userId: user.id,
           content: newComment.trim(),
           parentCommentId: null,
+          mentions: extractedMentions.join(","),
         },
       });
 
@@ -149,6 +241,7 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
       setComments(updatedComments);
       onCommentCountChange?.(countTotalComments(updatedComments));
       setNewComment("");
+      setMentionedUsers([]);
     } catch (error) {
       console.error("Error creating comment:", error);
       alert("Failed to create comment");
@@ -163,12 +256,25 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
 
     try {
       setSubmittingReply(true);
+
+      // Extract mentions from reply text
+      const extractedMentions = extractMentions(replyContent)
+        .map((mention) =>
+          mentionedUsers.find(
+            (u) =>
+              u.name.replace(" ", "").toLowerCase() === mention.toLowerCase()
+          )
+        )
+        .filter(Boolean)
+        .map((user) => user.id);
+
       const response = await axiosInstance.post("/api/comments", null, {
         params: {
           postId,
           userId: user.id,
           content: replyContent.trim(),
           parentCommentId: parentId,
+          mentions: extractedMentions.join(","),
         },
       });
 
@@ -191,6 +297,7 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
       onCommentCountChange?.(countTotalComments(updatedComments));
       setReplyContent("");
       setReplyToComment(null);
+      setMentionedUsers([]);
 
       setShowRepliesFor({
         ...showRepliesFor,
@@ -268,7 +375,9 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
           if (comment.id === parentId) {
             return {
               ...comment,
-              replies: comment.replies.filter((reply) => reply.id !== commentId),
+              replies: comment.replies.filter(
+                (reply) => reply.id !== commentId
+              ),
             };
           }
           return comment;
@@ -287,46 +396,54 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
     }
   };
 
-  const handleReaction = async (commentId, isParentComment = true, parentId = null) => {
+  const handleReaction = async (
+    commentId,
+    isParentComment = true,
+    parentId = null
+  ) => {
     if (!user) return;
 
     try {
       setReactingToComment(commentId);
-      const response = await axiosInstance.post(`/api/comments/${commentId}/react`, null, {
-        params: {
-          userId: user.id,
-          reactionType: 'like'
+      const response = await axiosInstance.post(
+        `/api/comments/${commentId}/react`,
+        null,
+        {
+          params: {
+            userId: user.id,
+            reactionType: "like",
+          },
         }
-      });
+      );
 
       let updatedComments = [...comments];
 
       if (isParentComment) {
-        updatedComments = updatedComments.map(comment => {
+        updatedComments = updatedComments.map((comment) => {
           if (comment.id === commentId) {
             return {
               ...comment,
               likeCount: response.data.likeCount,
-              userLiked: response.data.userLiked
+              userLiked: response.data.userLiked,
             };
           }
           return comment;
         });
       } else if (parentId) {
-        updatedComments = updatedComments.map(comment => {
+        updatedComments = updatedComments.map((comment) => {
           if (comment.id === parentId) {
             return {
               ...comment,
-              replies: comment.replies.map(reply => {
+              replies: comment.replies.map((reply) => {
                 if (reply.id === commentId) {
                   return {
                     ...reply,
                     likeCount: response.data.likeCount,
-                    userLiked: response.data.userLiked
+                    userLiked: response.data.userLiked,
                   };
                 }
                 return reply;
-              })
+              }),
             };
           }
           return comment;
@@ -335,7 +452,7 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
 
       setComments(updatedComments);
     } catch (error) {
-      console.error('Error reacting to comment:', error);
+      console.error("Error reacting to comment:", error);
     } finally {
       setReactingToComment(null);
     }
@@ -359,7 +476,12 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
     return new Date(dateString).toLocaleString();
   };
 
-  const LikeButton = ({ comment, onClick, isReply = false, parentId = null }) => {
+  const LikeButton = ({
+    comment,
+    onClick,
+    isReply = false,
+    parentId = null,
+  }) => {
     const isLoading = reactingToComment === comment.id;
     const liked = comment.userLiked || false;
     const count = comment.likeCount || 0;
@@ -370,21 +492,37 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
         disabled={isLoading}
         className={`group flex items-center space-x-1 text-sm px-2 py-1 rounded-full transition-all duration-200 ${
           liked
-            ? 'text-red-500 hover:bg-red-50'
-            : 'text-gray-500 hover:bg-gray-100'
+            ? "text-red-500 hover:bg-red-50"
+            : "text-gray-500 hover:bg-gray-100"
         }`}
       >
         {isLoading ? (
-          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <svg
+            className="animate-spin h-4 w-4"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="2"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
           </svg>
         ) : (
           <>
             <div className="relative">
               <svg
                 className={`w-4 h-4 transition-transform duration-200 ${
-                  liked ? 'scale-110 fill-current' : 'fill-none'
+                  liked ? "scale-110 fill-current" : "fill-none"
                 }`}
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -399,20 +537,18 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
 
               {liked && (
                 <span className="absolute inset-0 flex items-center justify-center">
-                  <svg 
-                    className="w-4 h-4 text-red-500 absolute animate-ping opacity-75" 
-                    fill="currentColor" 
+                  <svg
+                    className="w-4 h-4 text-red-500 absolute animate-ping opacity-75"
+                    fill="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path
-                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                    />
+                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
                 </span>
               )}
             </div>
             <span className="font-medium text-xs">
-              {count > 0 ? count : liked ? '1' : 'Like'}
+              {count > 0 ? count : liked ? "1" : "Like"}
             </span>
           </>
         )}
@@ -484,11 +620,18 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
                       </div>
                     </div>
                   ) : (
-                    <p className="text-gray-700 text-sm mt-1">{reply.content}</p>
+                    <p className="text-gray-700 text-sm mt-1">
+                      {renderCommentWithMentions(reply.content)}
+                    </p>
                   )}
 
                   <div className="mt-2 flex items-center gap-2">
-                    <LikeButton comment={reply} onClick={handleReaction} isReply={true} parentId={parentComment.id} />
+                    <LikeButton
+                      comment={reply}
+                      onClick={handleReaction}
+                      isReply={true}
+                      parentId={parentComment.id}
+                    />
                   </div>
                 </div>
               </div>
@@ -598,7 +741,9 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
               <div className="flex-1 relative">
                 <input
                   type="text"
-                  value={replyToComment === parentComment.id ? replyContent : ""}
+                  value={
+                    replyToComment === parentComment.id ? replyContent : ""
+                  }
                   onChange={(e) => setReplyContent(e.target.value)}
                   onClick={() => setReplyToComment(parentComment.id)}
                   placeholder="Add a reply..."
@@ -650,6 +795,60 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
     );
   };
 
+  const renderMentionDropdown = () => {
+    if (!showMentionResults || mentionResults.length === 0) return null;
+
+    return (
+      <div className="absolute z-10 mt-1 w-64 bg-white rounded-md shadow-lg overflow-hidden border border-gray-200">
+        <ul className="max-h-60 overflow-auto">
+          {mentionResults.map((user) => (
+            <li
+              key={user.id}
+              className="px-4 py-2 hover:bg-blue-50 cursor-pointer flex items-center"
+              onClick={() => insertMention(user)}
+            >
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                {user.profilePicture ? (
+                  <img
+                    src={user.profilePicture}
+                    alt={user.firstName}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm font-medium text-blue-500">
+                    {user?.firstName?.charAt(0) || "U"}
+                  </span>
+                )}
+              </div>
+              <span className="font-medium">
+                {user.firstName} {user.lastName}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
+  const renderCommentWithMentions = (text) => {
+    if (!text) return null;
+
+    // Split by mention pattern
+    const parts = text.split(/(@[a-zA-Z0-9]+[a-zA-Z0-9]*)/g);
+
+    return parts.map((part, index) => {
+      // If this part is a mention (starts with @)
+      if (part.startsWith("@")) {
+        return (
+          <span key={index} className="text-blue-600 font-medium">
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   useEffect(() => {
     console.log(`Comments for post ${postId}:`, comments);
   }, [comments, postId]);
@@ -687,15 +886,17 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
               <input
                 type="text"
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Write a comment..."
+                onChange={handleCommentChange}
+                placeholder="Write a comment... (Use @ to mention users)"
                 className="w-full p-3 pr-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
                 disabled={loading}
                 autoFocus
+                ref={mentionInputRef}
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
                 {newComment.length}/500
               </div>
+              {renderMentionDropdown()}
             </div>
             <button
               type="submit"
@@ -783,12 +984,15 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
                             </div>
                           ) : (
                             <p className="mt-1 text-gray-700 leading-relaxed">
-                              {comment.content}
+                              {renderCommentWithMentions(comment.content)}
                             </p>
                           )}
 
                           <div className="mt-2 flex items-center gap-3">
-                            <LikeButton comment={comment} onClick={handleReaction} />
+                            <LikeButton
+                              comment={comment}
+                              onClick={handleReaction}
+                            />
 
                             <button
                               onClick={() => {
@@ -984,7 +1188,9 @@ function Comments({ postId, postOwnerId, showInput, onCommentCountChange, cached
                                 ref={replyInputRef}
                                 type="text"
                                 value={replyContent}
-                                onChange={(e) => setReplyContent(e.target.value)}
+                                onChange={(e) =>
+                                  setReplyContent(e.target.value)
+                                }
                                 placeholder="Add a reply..."
                                 className="w-full pl-3 pr-16 py-2 bg-gray-100 hover:bg-white focus:bg-white rounded-full text-sm border border-transparent focus:border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all"
                               />

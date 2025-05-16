@@ -4,6 +4,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document(collection = "comments")
 public class Comment {
@@ -14,7 +16,8 @@ public class Comment {
     private String content;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private String parentCommentId; // Field to establish parent-child relationship
+    private String parentCommentId;
+    private List<String> mentions = new ArrayList<>(); // Add list of mentioned user IDs
 
     public Comment() {
         this.createdAt = LocalDateTime.now();
@@ -76,5 +79,23 @@ public class Comment {
 
     public void setParentCommentId(String parentCommentId) {
         this.parentCommentId = parentCommentId;
+    }
+
+    public List<String> getMentions() {
+        return mentions;
+    }
+
+    public void setMentions(List<String> mentions) {
+        this.mentions = mentions;
+    }
+    
+    // Helper method to add a mention
+    public void addMention(String userId) {
+        if (this.mentions == null) {
+            this.mentions = new ArrayList<>();
+        }
+        if (!this.mentions.contains(userId)) {
+            this.mentions.add(userId);
+        }
     }
 }

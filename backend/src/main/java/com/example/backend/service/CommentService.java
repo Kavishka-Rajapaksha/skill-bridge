@@ -78,7 +78,7 @@ public class CommentService {
         return convertToCommentResponse(comment, null);
     }
 
-    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
+    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId, List<String> mentions) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
 
@@ -87,6 +87,11 @@ public class CommentService {
         comment.setUserId(userId);
         comment.setContent(content);
         comment.setParentCommentId(parentCommentId);
+        
+        // Set mentioned users if provided
+        if (mentions != null && !mentions.isEmpty()) {
+            comment.setMentions(mentions);
+        }
 
         Comment savedComment = commentRepository.save(comment);
 
@@ -115,12 +120,33 @@ public class CommentService {
                     postId,
                     userId);
         }
+        
+        // Create notifications for mentioned users
+        if (mentions != null && !mentions.isEmpty()) {
+            for (String mentionedUserId : mentions) {
+                // Skip if the mentioned user is the same as the commenter or the post owner
+                if (!mentionedUserId.equals(userId) && !mentionedUserId.equals(post.getUserId())) {
+                    notificationService.createNotification(
+                            mentionedUserId,
+                            "MENTION",
+                            commenterName + " mentioned you in a comment",
+                            postId,
+                            userId);
+                }
+            }
+        }
 
         return convertToCommentResponse(savedComment);
     }
-
+    
+    // Add overloaded method for backward compatibility
+    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
+        return createComment(postId, userId, content, parentCommentId, null);
+    }
+    
+    // Update the existing createComment method to call the new one
     public CommentResponse createComment(String postId, String userId, String content) {
-        return createComment(postId, userId, content, null);
+        return createComment(postId, userId, content, null, null);
     }
 
     public CommentResponse updateComment(String commentId, String userId, String content) {

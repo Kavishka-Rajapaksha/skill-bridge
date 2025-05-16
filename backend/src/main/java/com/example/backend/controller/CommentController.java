@@ -6,12 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/comments")
+@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
 public class CommentController {
     private final CommentService commentService;
 
@@ -25,12 +27,19 @@ public class CommentController {
             @RequestParam String postId,
             @RequestParam String userId,
             @RequestParam String content,
-            @RequestParam(required = false) String parentCommentId) {
+            @RequestParam(required = false) String parentCommentId,
+            @RequestParam(required = false) String mentions) {
         try {
-            CommentResponse comment = commentService.createComment(postId, userId, content, parentCommentId);
-            return ResponseEntity.ok(comment);
+            List<String> mentionsList = null;
+            if (mentions != null && !mentions.isEmpty()) {
+                mentionsList = Arrays.asList(mentions.split(","));
+            }
+
+            CommentResponse comment = commentService.createComment(
+                    postId, userId, content, parentCommentId, mentionsList);
+            return ResponseEntity.status(201).body(comment);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.status(500).body(e.getMessage());
         }
     }
 

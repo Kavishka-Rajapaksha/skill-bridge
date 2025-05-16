@@ -32,6 +32,8 @@ public class NotificationService {
                 return actorName + " commented on your " + targetType;
             case "REPLY":
                 return actorName + " replied to your comment";
+            case "MENTION":
+                return actorName + " mentioned you in a comment";
             default:
                 return actorName + " interacted with your " + targetType;
         }
