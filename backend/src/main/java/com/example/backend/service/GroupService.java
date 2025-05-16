@@ -7,6 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
+import java.util.Collections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class GroupService {
@@ -16,6 +19,8 @@ public class GroupService {
 
     @Autowired
     private FileStorageService fileStorageService;
+
+    private static final Logger logger = LoggerFactory.getLogger(GroupService.class);
 
     public Group createGroup(String name, String description, String userId, MultipartFile coverImage)
             throws IOException {
@@ -73,6 +78,20 @@ public class GroupService {
     }
 
     public List<Group> getAllGroups() {
-        return groupRepository.findAll();
+        try {
+            List<Group> groups = groupRepository.findAll();
+            if (groups == null) {
+                return Collections.emptyList();
+            }
+            return groups;
+        } catch (Exception e) {
+            logger.error("Error fetching all groups: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch groups", e);
+        }
+    }
+
+    public Group getGroupById(String groupId) {
+        return groupRepository.findById(groupId)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found with id: " + groupId));
     }
 }

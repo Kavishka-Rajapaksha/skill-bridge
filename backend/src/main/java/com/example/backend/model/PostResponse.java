@@ -19,6 +19,20 @@ public class PostResponse {
     private int likes;
     private List<String> comments = new ArrayList<>();
     private LocalDateTime createdAt;
+    private Map<String, Integer> reactionCounts;
+    private String groupId;
+    private String sharedFrom;
+    private String sharedByUserId;
+    private String sharedByUserName;
+    private String sharedByUserProfilePicture;
+    private LocalDateTime sharedAt;
+    private String originalUserId;
+    private String originalUserName;
+    private String originalUserProfilePicture;
+    private LocalDateTime originalCreatedAt;
+    private String originalContent;
+    private List<String> originalImageUrls = new ArrayList<>();
+    private String originalVideoUrl;
 
     public PostResponse() {
     }
@@ -34,6 +48,9 @@ public class PostResponse {
         this.likes = post.getLikes();
         this.comments = post.getComments();
         this.createdAt = post.getCreatedAt();
+        this.reactionCounts = post.getReactionCounts();
+        this.groupId = post.getGroupId();
+        this.sharedFrom = post.getSharedFrom();
     }
 
     // Getters and setters
@@ -131,5 +148,117 @@ public class PostResponse {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Map<String, Integer> getReactionCounts() {
+        return reactionCounts;
+    }
+
+    public void setReactionCounts(Map<String, Integer> reactionCounts) {
+        this.reactionCounts = reactionCounts;
+    }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
+    }
+
+    public String getSharedFrom() {
+        return sharedFrom;
+    }
+
+    public void setSharedFrom(String sharedFrom) {
+        this.sharedFrom = sharedFrom;
+    }
+
+    public String getSharedByUserId() {
+        return sharedByUserId;
+    }
+
+    public void setSharedByUserId(String sharedByUserId) {
+        this.sharedByUserId = sharedByUserId;
+    }
+
+    public String getSharedByUserName() {
+        return sharedByUserName;
+    }
+
+    public void setSharedByUserName(String sharedByUserName) {
+        this.sharedByUserName = sharedByUserName;
+    }
+
+    public String getSharedByUserProfilePicture() {
+        return sharedByUserProfilePicture;
+    }
+
+    public void setSharedByUserProfilePicture(String sharedByUserProfilePicture) {
+        this.sharedByUserProfilePicture = sharedByUserProfilePicture;
+    }
+
+    public LocalDateTime getSharedAt() {
+        return sharedAt;
+    }
+
+    public void setSharedAt(LocalDateTime sharedAt) {
+        this.sharedAt = sharedAt;
+    }
+
+    public String getOriginalUserId() {
+        return originalUserId;
+    }
+
+    public void setOriginalUserId(String originalUserId) {
+        this.originalUserId = originalUserId;
+    }
+
+    public String getOriginalUserName() {
+        return originalUserName;
+    }
+
+    public void setOriginalUserName(String originalUserName) {
+        this.originalUserName = originalUserName;
+    }
+
+    public String getOriginalUserProfilePicture() {
+        return originalUserProfilePicture;
+    }
+
+    public void setOriginalUserProfilePicture(String originalUserProfilePicture) {
+        this.originalUserProfilePicture = originalUserProfilePicture;
+    }
+
+    public LocalDateTime getOriginalCreatedAt() {
+        return originalCreatedAt;
+    }
+
+    public void setOriginalCreatedAt(LocalDateTime originalCreatedAt) {
+        this.originalCreatedAt = originalCreatedAt;
+    }
+
+    public String getOriginalContent() {
+        return originalContent;
+    }
+
+    public void setOriginalContent(String originalContent) {
+        this.originalContent = originalContent;
+    }
+
+    public List<String> getOriginalImageUrls() {
+        return originalImageUrls;
+    }
+
+    public void setOriginalImageUrls(List<String> originalImageUrls) {
+        this.originalImageUrls = originalImageUrls != null ? originalImageUrls : new ArrayList<>();
+    }
+
+    public String getOriginalVideoUrl() {
+        return originalVideoUrl;
+    }
+
+    public void setOriginalVideoUrl(String originalVideoUrl) {
+        this.originalVideoUrl = originalVideoUrl;
     }
 }

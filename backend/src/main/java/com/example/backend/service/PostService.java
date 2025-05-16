@@ -55,7 +55,8 @@ public class PostService {
         this.gridFSBucket = GridFSBuckets.create(mongoTemplate.getDb(), "media");
     }
 
-    // Optional constructor for when you have CommentService and ReactionService available
+    // Optional constructor for when you have CommentService and ReactionService
+    // available
     @Autowired(required = false)
     public void setAdditionalServices(CommentService commentService, ReactionService reactionService) {
         this.commentService = commentService;
@@ -197,7 +198,7 @@ public class PostService {
 
     public List<PostResponse> getAllPosts() {
         try {
-            List<Post> posts = postRepository.findAllByOrderByCreatedAtDesc();
+            List<Post> posts = postRepository.findBySharedFromIsNullOrderByCreatedAtDesc();
             return posts.stream()
                     .map(this::convertToPostResponse)
                     .collect(Collectors.toList());
@@ -214,6 +215,76 @@ public class PostService {
                 .collect(Collectors.toList());
     }
 
+    public List<PostResponse> getGroupPosts(String groupId) {
+        try {
+            List<Post> posts = postRepository.findByGroupIdOrderByCreatedAtDesc(groupId);
+            List<PostResponse> responses = new ArrayList<>();
+
+            for (Post post : posts) {
+                PostResponse response = convertToPostResponse(post);
+
+                // If this is a shared post, enrich with original post details
+                if (post.getSharedFrom() != null) {
+                    try {
+                        // Get original post
+                        Post originalPost = postRepository.findById(post.getSharedFrom())
+                                .orElse(null);
+
+                        if (originalPost != null) {
+                            // Set original post content
+                            response.setOriginalContent(originalPost.getContent());
+                            response.setOriginalImageUrls(originalPost.getImageUrls());
+                            response.setOriginalVideoUrl(originalPost.getVideoUrl());
+                            response.setOriginalCreatedAt(originalPost.getCreatedAt());
+
+                            // Set original user details
+                            userRepository.findById(originalPost.getUserId()).ifPresent(originalUser -> {
+                                response.setOriginalUserId(originalUser.getId());
+                                response.setOriginalUserName(
+                                        originalUser.getFirstName() + " " + originalUser.getLastName());
+                                response.setOriginalUserProfilePicture(originalUser.getProfilePicture());
+                            });
+                        }
+
+                        // Make sure current user information is populated correctly
+                        userRepository.findById(post.getUserId()).ifPresent(currentUser -> {
+                            response.setUserId(currentUser.getId());
+                            response.setUserName(currentUser.getFirstName() + " " + currentUser.getLastName());
+                            response.setUserProfilePicture(currentUser.getProfilePicture());
+                        });
+
+                        // Set sharing user details explicitly
+                        userRepository.findById(post.getUserId()).ifPresent(sharingUser -> {
+                            response.setSharedByUserId(sharingUser.getId());
+                            response.setSharedByUserName(sharingUser.getFirstName() + " " + sharingUser.getLastName());
+                            response.setSharedByUserProfilePicture(sharingUser.getProfilePicture());
+                            response.setSharedAt(post.getCreatedAt());
+                        });
+                    } catch (Exception e) {
+                        System.err.println("Error enriching shared post: " + e.getMessage());
+                    }
+                } else {
+                    // Make sure user details are always populated for non-shared posts too
+                    userRepository.findById(post.getUserId()).ifPresent(currentUser -> {
+                        if (response.getUserName() == null || response.getUserName().isEmpty() ||
+                                response.getUserName().equals("Deleted User")) {
+                            response.setUserName(currentUser.getFirstName() + " " + currentUser.getLastName());
+                            response.setUserProfilePicture(currentUser.getProfilePicture());
+                        }
+                    });
+                }
+
+                responses.add(response);
+            }
+
+            return responses;
+        } catch (Exception e) {
+            System.err.println("Error fetching group posts: " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
     public void deletePost(String postId, String userId, boolean isAdmin) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
@@ -223,28 +294,35 @@ public class PostService {
             throw new IllegalArgumentException("You can only delete your own posts");
         }
 
-        // Delete associated media from GridFS and local storage
-        if (post.getMediaIds() != null) {
-            for (String mediaId : post.getMediaIds()) {
-                try {
-                    // Delete from GridFS
-                    gridFSBucket.delete(new ObjectId(mediaId));
+        try {
+            // Delete associated media from GridFS and local storage
+            if (post.getMediaIds() != null && !post.getMediaIds().isEmpty()) {
+                for (String mediaId : post.getMediaIds()) {
+                    try {
+                        // Delete from GridFS
+                        if (ObjectId.isValid(mediaId)) {
+                            gridFSBucket.delete(new ObjectId(mediaId));
+                        }
 
-                    // Delete from local storage - use absolute path
-                    Path mediaPath = Paths.get("D:", "Learn_Book", "backend", "uploads", mediaId);
-                    if (Files.exists(mediaPath)) {
-                        Files.delete(mediaPath);
-                        System.out.println("Deleted file: " + mediaPath);
+                        // Delete from local storage - use relative path
+                        Path mediaPath = Paths.get("backend", "uploads", mediaId);
+                        if (Files.exists(mediaPath)) {
+                            Files.delete(mediaPath);
+                            System.out.println("Deleted file: " + mediaPath);
+                        }
+                    } catch (Exception e) {
+                        // Log error but continue with other media deletions
+                        System.err.println("Error deleting media " + mediaId + ": " + e.getMessage());
                     }
-                } catch (Exception e) {
-                    // Log error but continue with post deletion
-                    System.err.println("Error deleting media: " + e.getMessage());
                 }
             }
-        }
 
-        // Delete post from database
-        postRepository.deleteById(postId);
+            // Delete post from database
+            postRepository.deleteById(postId);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete post and associated media: " + e.getMessage(), e);
+        }
     }
 
     public PostResponse updatePost(String postId, String userId, String content, List<MultipartFile> images) {
@@ -306,6 +384,7 @@ public class PostService {
 
     /**
      * Get a post by its ID
+     * 
      * @param postId The ID of the post to retrieve
      * @return PostResponse containing post details
      */
@@ -313,13 +392,13 @@ public class PostService {
         // Find the post by ID
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found with ID: " + postId));
-        
+
         // Convert Post to PostResponse
         PostResponse response = convertToPostResponse(post);
-        
+
         // Try to enrich with additional data if services are available
         enrichPostResponse(response);
-        
+
         return response;
     }
 
@@ -332,17 +411,17 @@ public class PostService {
             if (commentService != null) {
                 try {
                     List<CommentResponse> comments = commentService.getPostComments(response.getId(), 1000);
-                    
+
                     // Simply store the comment count instead of trying to set the comments list
                     // This avoids potential type casting errors or missing methods
                     if (comments != null) {
                         // Just update the likes count with the number of comments as a fallback
                         System.out.println("Found " + comments.size() + " comments for post " + response.getId());
                     }
-                    
-                    /* 
-                     * NOTE: We're avoiding attempting to set comments directly since the 
-                     * PostResponse.setComments() method might expect a different type than 
+
+                    /*
+                     * NOTE: We're avoiding attempting to set comments directly since the
+                     * PostResponse.setComments() method might expect a different type than
                      * List<CommentResponse>. The frontend should call a separate API endpoint
                      * to get comments when needed.
                      */
@@ -351,7 +430,7 @@ public class PostService {
                     // Don't let comment errors fail the whole response
                 }
             }
-            
+
             // Add reaction count if reactionService is available
             if (reactionService != null) {
                 try {
@@ -366,6 +445,62 @@ public class PostService {
         } catch (Exception e) {
             // Log error but don't fail the entire response
             System.err.println("Error enriching post response: " + e.getMessage());
+        }
+    }
+
+    public PostResponse sharePostToGroup(String postId, String groupId, String sharingUserId) {
+        if (postId == null || groupId == null || sharingUserId == null) {
+            throw new IllegalArgumentException("Post ID, Group ID, and User ID are required");
+        }
+
+        try {
+            // Verify post exists
+            Post originalPost = postRepository.findById(postId)
+                    .orElseThrow(() -> new IllegalArgumentException("Post not found: " + postId));
+
+            // Create a new post with shared content
+            Post sharedPost = new Post();
+            // Copy all relevant fields from original post
+            sharedPost.setContent(originalPost.getContent());
+            sharedPost.setImageUrls(originalPost.getImageUrls());
+            sharedPost.setVideoUrl(originalPost.getVideoUrl());
+            sharedPost.setMediaIds(originalPost.getMediaIds());
+            sharedPost.setMediaTypes(originalPost.getMediaTypes());
+            sharedPost.setCreatedAt(LocalDateTime.now());
+            sharedPost.setGroupId(groupId);
+            sharedPost.setSharedFrom(postId);
+            sharedPost.setUserId(sharingUserId); // This is the sharing user's ID
+
+            Post savedPost = postRepository.save(sharedPost);
+            PostResponse response = convertToPostResponse(savedPost);
+
+            // Add original post creator's details
+            User originalUser = userRepository.findById(originalPost.getUserId())
+                    .orElseThrow(() -> new RuntimeException("Original user not found"));
+            response.setOriginalUserId(originalPost.getUserId());
+            response.setOriginalUserName(originalUser.getFirstName() + " " + originalUser.getLastName());
+            response.setOriginalUserProfilePicture(originalUser.getProfilePicture());
+            response.setOriginalCreatedAt(originalPost.getCreatedAt());
+            response.setOriginalContent(originalPost.getContent());
+            response.setOriginalImageUrls(originalPost.getImageUrls());
+            response.setOriginalVideoUrl(originalPost.getVideoUrl());
+
+            // Add sharing user's details
+            User sharingUser = userRepository.findById(sharingUserId)
+                    .orElseThrow(() -> new RuntimeException("Sharing user not found"));
+            response.setSharedByUserId(sharingUserId);
+            response.setSharedByUserName(sharingUser.getFirstName() + " " + sharingUser.getLastName());
+            response.setSharedByUserProfilePicture(sharingUser.getProfilePicture());
+            response.setSharedAt(savedPost.getCreatedAt());
+
+            // Set the current post details (same as sharing user in this case)
+            response.setUserId(sharingUserId);
+            response.setUserName(sharingUser.getFirstName() + " " + sharingUser.getLastName());
+            response.setUserProfilePicture(sharingUser.getProfilePicture());
+
+            return response;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to share post: " + e.getMessage(), e);
         }
     }
 }

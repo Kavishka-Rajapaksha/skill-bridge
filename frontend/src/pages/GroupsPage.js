@@ -18,7 +18,7 @@ function GroupsPage() {
         const response = await axiosInstance.get(endpoint);
         setGroups(response.data);
       } catch (err) {
-        setError(err.response?.data?.message || "Failed to load groups");
+        setError(err.response?.data?.message);
       } finally {
         setLoading(false);
       }

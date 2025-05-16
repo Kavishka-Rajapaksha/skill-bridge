@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axios";
+import WebSocketService from "../services/WebSocketService";
 
 function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
   const [liked, setLiked] = useState(false);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [optimisticUpdate, setOptimisticUpdate] = useState(null);
 
   useEffect(() => {
     const checkReactionStatus = async () => {
       try {
-        const response = await axiosInstance.get(`/api/reactions/status?postId=${postId}&userId=${userId}`);
+        const response = await axiosInstance.get(
+          `/api/reactions/status?postId=${postId}&userId=${userId}`
+        );
         setLiked(response.data.liked);
         setCount(response.data.count);
       } catch (error) {
@@ -22,33 +26,70 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
     }
   }, [postId, userId]);
 
+  useEffect(() => {
+    const callback = (update) => {
+      if (update.postId === postId) {
+        // Only update if this is a server-confirmed update (not our optimistic one)
+        // or if we had an optimistic update that needs to be reconciled
+        if (!optimisticUpdate || Date.now() - optimisticUpdate > 7000) {
+          setLiked(update.userLiked);
+          setCount(update.reactionCount);
+          setLoading(false);
+          setOptimisticUpdate(null);
+        }
+      }
+    };
+
+    WebSocketService.setReactionCallback(callback);
+
+    return () => {
+      // Clean up by setting an empty callback if component unmounts
+      WebSocketService.setReactionCallback(() => {});
+    };
+  }, [postId, optimisticUpdate]);
+
   const handleReaction = async () => {
     if (loading) return;
-    
-    try {
-      setLoading(true);
-      // Optimistic UI update
-      setLiked(!liked);
-      setCount(liked ? count - 1 : count + 1);
 
-      const response = await axiosInstance.post("/api/reactions/toggle", null, {
-        params: { userId, postId }
+    try {
+      // Optimistically update UI immediately
+      const newLikedState = !liked;
+      const newCount = newLikedState ? count + 1 : Math.max(0, count - 1);
+
+      setLiked(newLikedState);
+      setCount(newCount);
+      setLoading(true);
+      setOptimisticUpdate(Date.now());
+
+      // Notify parent about the change
+      if (onReactionChange) {
+        onReactionChange({ liked: newLikedState, count: newCount });
+      }
+
+      // Send actual request in the background
+      await axiosInstance.post("/api/reactions/toggle", null, {
+        params: { userId, postId },
       });
 
-      // Update with actual values from server
-      setLiked(response.data.liked);
-      setCount(response.data.count);
-      
-      if (onReactionChange) {
-        onReactionChange(response.data);
-      }
-    } catch (error) {
-      // Revert to previous state on error
-      setLiked(!liked);
-      setCount(liked ? count + 1 : count - 1);
-      console.error("Error toggling reaction:", error);
-    } finally {
+      // Success! Keep the optimistic update
       setLoading(false);
+
+      // We'll let WebSocket reconcile any inconsistencies if needed
+    } catch (error) {
+      console.error("Error toggling reaction:", error);
+      // Revert optimistic update on error
+      setLiked(!liked);
+      setCount(liked ? count + 1 : Math.max(0, count - 1));
+      setLoading(false);
+      setOptimisticUpdate(null);
+
+      // Also notify parent about the revert
+      if (onReactionChange) {
+        onReactionChange({
+          liked,
+          count: liked ? count + 1 : Math.max(0, count - 1),
+        });
+      }
     }
   };
 
@@ -58,7 +99,7 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
       liked,
       count,
       onClick: handleReaction,
-      loading
+      loading,
     });
   }
 
@@ -67,10 +108,14 @@ function ReactionButton({ postId, userId, onReactionChange, renderButton }) {
     <button
       onClick={handleReaction}
       disabled={loading}
-      className={`flex items-center space-x-2 ${liked ? "text-blue-600" : "text-gray-500 hover:text-blue-500"}`}
+      className={`flex items-center space-x-2 ${
+        liked ? "text-blue-600" : "text-gray-500 hover:text-blue-500"
+      }`}
     >
       <svg
-        className="w-6 h-6"
+        className={`w-6 h-6 transition-transform duration-200 ${
+          liked ? "scale-110" : ""
+        }`}
         fill={liked ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"

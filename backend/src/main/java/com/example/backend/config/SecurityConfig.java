@@ -47,6 +47,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/auth/**").permitAll()
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers("/error").permitAll()
+                                                .requestMatchers("/ws/**", "/ws").permitAll() // Add WebSocket endpoints
                                                 .requestMatchers("/api/auth/register").permitAll() // Explicitly permit
                                                                                                    // registration
                                                 .requestMatchers("/api/auth/login").permitAll() // Explicitly permit

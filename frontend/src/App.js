@@ -15,11 +15,14 @@ import AdminBlockedUsers from "./pages/AdminBlockedUsers";
 import GroupCreate from "./pages/GroupCreate";
 import GroupsPage from "./pages/GroupsPage";
 import ReportedPosts from "./pages/admin/ReportedPosts"; // Import the ReportedPosts page
+import PostView from "./pages/PostView"; // Import the new PostView component
 import Profile from "./pages/Profile";
 import EditProfile from "./pages/EditProfile";
 import { AuthProvider } from "./context/AuthContext";
+import { PopupProvider } from "./context/PopupContext"; // Import the PopupProvider
 import PrivateRoute from "./components/PrivateRoute"; // Update this line
 import Header from "./components/Header"; // Import the Header component
+import GroupFeed from "./pages/GroupFeed";
 
 function App() {
   const AdminRoute = ({ children }) => {
@@ -44,107 +47,129 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        {/* Include Header only once here */}
-        <Header />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+      <PopupProvider>
+        <Router
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          {/* Include Header only once here */}
+          <Header />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Admin Routes */}
-          <Route
-            path="/admin/dashboard"
-            element={
-              <AdminRoute>
-                <AdminDashboard />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <AdminRoute>
-                <AdminUserManagement />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/users/add"
-            element={
-              <AdminRoute>
-                <AdminAddUser />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/users/blocked"
-            element={
-              <AdminRoute>
-                <AdminBlockedUsers />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/reports"
-            element={
-              <AdminRoute>
-                <ReportedPosts />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/groups/create"
-            element={
-              <PrivateRoute>
-                <GroupCreate />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/groups"
-            element={
-              <PrivateRoute>
-                <GroupsPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/groups/:type"
-            element={
-              <PrivateRoute>
-                <GroupsPage />
-              </PrivateRoute>
-            }
-          />
-          {/* Profile Routes */}
-          <Route
-            path="/profile"
-            element={
-              <PrivateRoute>
-                <Profile />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/profile/:userId"
-            element={
-              <PrivateRoute>
-                <Profile />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/edit-profile"
-            element={
-              <PrivateRoute>
-                <EditProfile />
-              </PrivateRoute>
-            }
-          />
-          {/* Add other routes as needed */}
-        </Routes>
-      </Router>
+            {/* Add PostView route */}
+            <Route
+              path="/post/:postId"
+              element={
+                <PrivateRoute>
+                  <PostView />
+                </PrivateRoute>
+              }
+            />
+
+            {/* Admin Routes */}
+            <Route
+              path="/admin/dashboard"
+              element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <AdminUserManagement />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/users/add"
+              element={
+                <AdminRoute>
+                  <AdminAddUser />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/users/blocked"
+              element={
+                <AdminRoute>
+                  <AdminBlockedUsers />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/reports"
+              element={
+                <AdminRoute>
+                  <ReportedPosts />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/groups/create"
+              element={
+                <PrivateRoute>
+                  <GroupCreate />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/groups"
+              element={
+                <PrivateRoute>
+                  <GroupsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/groups/:type"
+              element={
+                <PrivateRoute>
+                  <GroupsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/group/:groupId"
+              element={
+                <PrivateRoute>
+                  <GroupFeed />
+                </PrivateRoute>
+              }
+            />
+            {/* Profile Routes */}
+            <Route
+              path="/profile"
+              element={
+                <PrivateRoute>
+                  <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/profile/:userId"
+              element={
+                <PrivateRoute>
+                  <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/edit-profile"
+              element={
+                <PrivateRoute>
+                  <EditProfile />
+                </PrivateRoute>
+              }
+            />
+            {/* Add other routes as needed */}
+          </Routes>
+        </Router>
+      </PopupProvider>
     </AuthProvider>
   );
 }

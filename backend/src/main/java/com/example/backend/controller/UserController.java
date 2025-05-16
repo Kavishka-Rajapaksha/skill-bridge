@@ -8,32 +8,35 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/users")
 @CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" })
 public class UserController {
-    
+
     // Static inner class to handle role update requests
     public static class RoleUpdateRequest {
         private String role;
-        
+
         // Default constructor needed for JSON deserialization
         public RoleUpdateRequest() {
         }
-        
+
         public RoleUpdateRequest(String role) {
             this.role = role;
         }
-        
+
         public String getRole() {
             return role;
         }
-        
+
         public void setRole(String role) {
             this.role = role;
         }
     }
-    
+
     @Autowired
     private UserService userService;
 
@@ -76,18 +79,18 @@ public class UserController {
         try {
             // Log the request for debugging
             System.out.println("Updating role for user: " + userId + " to: " + request.getRole());
-            
+
             User user = userService.getUserById(userId);
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
             }
-            
+
             // Validate the role
             String newRole = request.getRole();
             if (!newRole.equals("ROLE_USER") && !newRole.equals("ROLE_ADMIN")) {
                 return ResponseEntity.badRequest().body("Invalid role: " + newRole);
             }
-            
+
             // Update the user role
             user.setRole(newRole);
             User updatedUser = userService.saveUser(user);
@@ -97,8 +100,9 @@ public class UserController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-    
-    // Keep this method for backward compatibility but have it use the update-role endpoint
+
+    // Keep this method for backward compatibility but have it use the update-role
+    // endpoint
     @PutMapping("/{userId}/promote-to-admin")
     public ResponseEntity<?> promoteToAdmin(@PathVariable String userId) {
         try {
@@ -108,13 +112,45 @@ public class UserController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-    
-    // Keep this method for backward compatibility but have it use the update-role endpoint
+
+    // Keep this method for backward compatibility but have it use the update-role
+    // endpoint
     @PutMapping("/{userId}/demote-to-user")
     public ResponseEntity<?> demoteToUser(@PathVariable String userId) {
         try {
             RoleUpdateRequest request = new RoleUpdateRequest("ROLE_USER");
             return updateUserRole(userId, request);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchUsers(@RequestParam String query) {
+        try {
+            if (query == null || query.trim().isEmpty() || query.length() < 2) {
+                return ResponseEntity.badRequest().body("Search query must be at least 2 characters");
+            }
+
+            // Case-insensitive search for firstName, lastName, or email containing the
+            // query
+            List<User> users = userService.searchUsers(query);
+
+            // Remove sensitive information from users
+            List<User> sanitizedUsers = users.stream()
+                    .map(user -> {
+                        User sanitized = new User();
+                        sanitized.setId(user.getId());
+                        sanitized.setFirstName(user.getFirstName());
+                        sanitized.setLastName(user.getLastName());
+                        sanitized.setEmail(user.getEmail());
+                        sanitized.setProfilePicture(user.getProfilePicture());
+                        sanitized.setRole(user.getRole());
+                        return sanitized;
+                    })
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.ok(sanitizedUsers);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

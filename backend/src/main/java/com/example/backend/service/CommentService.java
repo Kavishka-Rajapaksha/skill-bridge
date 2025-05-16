@@ -29,6 +29,9 @@ public class CommentService {
     private final CommentReactionRepository commentReactionRepository;
 
     @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
     public CommentService(CommentRepository commentRepository,
             PostRepository postRepository,
             UserRepository userRepository,
@@ -60,7 +63,8 @@ public class CommentService {
 
             // Check if current user has liked this comment
             if (currentUserId != null) {
-                boolean userLiked = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId).isPresent();
+                boolean userLiked = commentReactionRepository.findByCommentIdAndUserId(comment.getId(), currentUserId)
+                        .isPresent();
                 response.setUserLiked(userLiked);
             }
         } catch (Exception e) {
@@ -74,35 +78,76 @@ public class CommentService {
         return convertToCommentResponse(comment, null);
     }
 
-    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
+    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId,
+            List<String> mentions) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
-
-        // Validate parent comment if provided
-        if (parentCommentId != null && !parentCommentId.isEmpty()) {
-            commentRepository.findById(parentCommentId)
-                .orElseThrow(() -> new IllegalArgumentException("Parent comment not found"));
-        }
 
         Comment comment = new Comment();
         comment.setPostId(postId);
         comment.setUserId(userId);
         comment.setContent(content);
-        comment.setParentCommentId(parentCommentId); // Set the parent-child relationship
+        comment.setParentCommentId(parentCommentId);
+
+        // Set mentioned users if provided
+        if (mentions != null && !mentions.isEmpty()) {
+            comment.setMentions(mentions);
+        }
 
         Comment savedComment = commentRepository.save(comment);
 
-        // Update post's comments list (only for parent comments)
-        if (parentCommentId == null || parentCommentId.isEmpty()) {
-            post.getComments().add(savedComment.getId());
-            postRepository.save(post);
+        // Get commenter name
+        User commenter = userRepository.findById(userId).orElse(null);
+        String commenterName = commenter != null ? (commenter.getFirstName() + " " + commenter.getLastName())
+                : "Someone";
+
+        // Create notification for post owner if it's a top-level comment
+        if (parentCommentId == null) {
+            notificationService.createNotification(
+                    post.getUserId(),
+                    "COMMENT",
+                    commenterName + " commented on your post",
+                    postId,
+                    userId);
+        } else {
+            // Create notification for parent comment owner
+            Comment parentComment = commentRepository.findById(parentCommentId)
+                    .orElseThrow(() -> new IllegalArgumentException("Parent comment not found"));
+
+            notificationService.createNotification(
+                    parentComment.getUserId(),
+                    "REPLY",
+                    commenterName + " replied to your comment",
+                    postId,
+                    userId);
+        }
+
+        // Create notifications for mentioned users
+        if (mentions != null && !mentions.isEmpty()) {
+            for (String mentionedUserId : mentions) {
+                // Skip if the mentioned user is the same as the commenter or the post owner
+                if (!mentionedUserId.equals(userId) && !mentionedUserId.equals(post.getUserId())) {
+                    notificationService.createNotification(
+                            mentionedUserId,
+                            "MENTION",
+                            commenterName + " mentioned you in a comment",
+                            postId,
+                            userId);
+                }
+            }
         }
 
         return convertToCommentResponse(savedComment);
     }
 
+    // Add overloaded method for backward compatibility
+    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
+        return createComment(postId, userId, content, parentCommentId, null);
+    }
+
+    // Update the existing createComment method to call the new one
     public CommentResponse createComment(String postId, String userId, String content) {
-        return createComment(postId, userId, content, null);
+        return createComment(postId, userId, content, null, null);
     }
 
     public CommentResponse updateComment(String commentId, String userId, String content) {
@@ -193,10 +238,11 @@ public class CommentService {
         try {
             // Replace findByPostId with an existing repository method
             List<Comment> allComments = commentRepository.findByPostIdOrderByCreatedAtDesc(
-                    postId, 
-                    PageRequest.of(0, Math.max(limit, 1000)) // Ensure we get enough comments for hierarchical structuring
+                    postId,
+                    PageRequest.of(0, Math.max(limit, 1000)) // Ensure we get enough comments for hierarchical
+                                                             // structuring
             ).getContent();
-            
+
             // Convert to response objects
             return allComments.stream()
                     .map(this::convertToCommentResponse)
@@ -224,10 +270,9 @@ public class CommentService {
     public List<CommentResponse> getPostComments(String postId, int limit, String currentUserId) {
         try {
             List<Comment> allComments = commentRepository.findByPostIdOrderByCreatedAtDesc(
-                    postId, 
-                    PageRequest.of(0, Math.max(limit, 1000))
-            ).getContent();
-            
+                    postId,
+                    PageRequest.of(0, Math.max(limit, 1000))).getContent();
+
             return allComments.stream()
                     .map(comment -> convertToCommentResponse(comment, currentUserId))
                     .collect(Collectors.toList());
@@ -244,7 +289,8 @@ public class CommentService {
                 .orElseThrow(() -> new IllegalArgumentException("Comment not found"));
 
         // Check if user already reacted to this comment
-        Optional<CommentReaction> existingReaction = commentReactionRepository.findByCommentIdAndUserId(commentId, userId);
+        Optional<CommentReaction> existingReaction = commentReactionRepository.findByCommentIdAndUserId(commentId,
+                userId);
 
         if (existingReaction.isPresent()) {
             // User already reacted, so remove the reaction (toggle behavior)
@@ -257,5 +303,15 @@ public class CommentService {
 
         // Return updated comment response
         return convertToCommentResponse(comment, userId);
+    }
+
+    public long getCommentCount(String postId) {
+        try {
+            List<Comment> comments = commentRepository.findByPostId(postId);
+            return comments.size();
+        } catch (Exception e) {
+            System.err.println("Error getting comment count: " + e.getMessage());
+            return 0;
+        }
     }
 }
