@@ -30,14 +30,14 @@ function PostView() {
     // Create abort controller to handle cleanup
     const abortController = new AbortController();
     const signal = abortController.signal;
-    
+
     // Check cache first
     if (postCache[postId]) {
       setPost(postCache[postId]);
       setLoading(false);
       return;
     }
-    
+
     // Set a delayed loading indicator
     loadingTimerRef.current = setTimeout(() => {
       if (!signal.aborted) {
@@ -62,15 +62,21 @@ function PostView() {
         // Only set error if not aborted
         if (!signal.aborted) {
           console.error("Error fetching post:", err);
-          
+
           // Retry logic for network errors
-          if (err.message !== 'canceled' && !err.response && retryCount.current < MAX_RETRIES) {
+          if (
+            err.message !== "canceled" &&
+            !err.response &&
+            retryCount.current < MAX_RETRIES
+          ) {
             retryCount.current += 1;
-            console.log(`Retrying... Attempt ${retryCount.current} of ${MAX_RETRIES}`);
+            console.log(
+              `Retrying... Attempt ${retryCount.current} of ${MAX_RETRIES}`
+            );
             setTimeout(fetchPost, 1000 * retryCount.current); // Exponential backoff
             return;
           }
-          
+
           setError(err.message || "Failed to load post");
 
           if (err.response?.status === 404) {
