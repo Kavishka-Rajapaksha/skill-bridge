@@ -15,6 +15,7 @@ import AdminBlockedUsers from "./pages/AdminBlockedUsers";
 import GroupCreate from "./pages/GroupCreate";
 import GroupsPage from "./pages/GroupsPage";
 import ReportedPosts from "./pages/admin/ReportedPosts"; // Import the ReportedPosts page
+import PostView from "./pages/PostView"; // Import the new PostView component
 import Profile from "./pages/Profile";
 import EditProfile from "./pages/EditProfile";
 import { AuthProvider } from "./context/AuthContext";
@@ -56,6 +57,16 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+
+            {/* Add PostView route */}
+            <Route
+              path="/post/:postId"
+              element={
+                <PrivateRoute>
+                  <PostView />
+                </PrivateRoute>
+              }
+            />
 
             {/* Admin Routes */}
             <Route
