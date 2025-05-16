@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { Link } from "react-router-dom";
 import axiosInstance from "../utils/axios";
 import Comments from "./Comments";
 import ReactionButton from "./ReactionButton";
@@ -473,7 +474,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         <div className="bg-gray-50 border-b border-gray-200 p-4">
           {/* Shared by section */}
           <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
+            <Link
+              to={`/profile/${post.sharedByUserId}`}
+              className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md hover:shadow-lg transition-shadow"
+            >
               <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
                 {post.sharedByUserProfilePicture ? (
                   <img
@@ -491,11 +495,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                   </span>
                 )}
               </div>
-            </div>
+            </Link>
             <div>
-              <p className="font-semibold text-gray-900">
+              <Link
+                to={`/profile/${post.sharedByUserId}`}
+                className="font-semibold text-gray-900 hover:text-indigo-600 transition-colors"
+              >
                 {post.sharedByUserName || "Unknown User"}
-              </p>
+              </Link>
               <p className="text-sm text-gray-500">
                 shared a post •{" "}
                 {formatDate(post.sharedAt || post.createdAt) || "N/A"}
@@ -507,7 +514,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
           <div className="ml-12 mt-2 border-l-2 border-gray-200 pl-4">
             {/* Original post header */}
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
+              <Link
+                to={`/profile/${post.originalUserId}`}
+                className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md hover:shadow-lg transition-shadow"
+              >
                 <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
                   {post.originalUserProfilePicture ? (
                     <img
@@ -525,11 +535,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                     </span>
                   )}
                 </div>
-              </div>
+              </Link>
               <div>
-                <p className="font-semibold text-gray-900">
+                <Link
+                  to={`/profile/${post.originalUserId}`}
+                  className="font-semibold text-gray-900 hover:text-indigo-600 transition-colors"
+                >
                   {post.originalUserName || "Unknown User"}
-                </p>
+                </Link>
                 <p className="text-sm text-gray-500">
                   {formatDate(post.originalCreatedAt || post.createdAt) ||
                     "N/A"}
@@ -584,7 +597,10 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
         <>
           <div className="flex items-center justify-between p-5 border-b border-gray-50">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md">
+              <Link
+                to={`/profile/${post.userId}`}
+                className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-0.5 shadow-md hover:shadow-lg transition-shadow"
+              >
                 <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
                   {post.userProfilePicture ? (
                     <img
@@ -598,11 +614,14 @@ function Post({ post, onPostDeleted, onPostUpdated }) {
                     </span>
                   )}
                 </div>
-              </div>
+              </Link>
               <div>
-                <h3 className="font-medium text-gray-900">
+                <Link
+                  to={`/profile/${post.userId}`}
+                  className="font-medium text-gray-900 hover:text-indigo-600 transition-colors"
+                >
                   {post.userName || "Unknown User"}
-                </h3>
+                </Link>
                 <p className="text-xs text-gray-500 flex items-center">
                   <svg
                     className="w-3 h-3 mr-1 text-gray-400"
