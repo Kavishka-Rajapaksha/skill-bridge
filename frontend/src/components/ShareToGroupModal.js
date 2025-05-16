@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axiosInstance from "../utils/axios";
 import AdminApiService from "../utils/apiService";
 
@@ -8,6 +9,7 @@ function ShareToGroupModal({ isOpen, onClose, postId, onSuccess, post }) {
   const [error, setError] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
   const [isSharing, setIsSharing] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -43,6 +45,8 @@ function ShareToGroupModal({ isOpen, onClose, postId, onSuccess, post }) {
       await AdminApiService.sharePost(postId, selectedGroup);
       onSuccess?.();
       onClose();
+      // Navigate to the correct group page after successful sharing (changed from /groups/ to /group/)
+      navigate(`/group/${selectedGroup}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to share post");
     } finally {
