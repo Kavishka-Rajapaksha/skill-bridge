@@ -88,7 +88,7 @@ public class Comment {
     public void setMentions(List<String> mentions) {
         this.mentions = mentions;
     }
-    
+
     // Helper method to add a mention
     public void addMention(String userId) {
         if (this.mentions == null) {

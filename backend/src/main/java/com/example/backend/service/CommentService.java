@@ -78,7 +78,8 @@ public class CommentService {
         return convertToCommentResponse(comment, null);
     }
 
-    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId, List<String> mentions) {
+    public CommentResponse createComment(String postId, String userId, String content, String parentCommentId,
+            List<String> mentions) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
 
@@ -87,7 +88,7 @@ public class CommentService {
         comment.setUserId(userId);
         comment.setContent(content);
         comment.setParentCommentId(parentCommentId);
-        
+
         // Set mentioned users if provided
         if (mentions != null && !mentions.isEmpty()) {
             comment.setMentions(mentions);
@@ -120,7 +121,7 @@ public class CommentService {
                     postId,
                     userId);
         }
-        
+
         // Create notifications for mentioned users
         if (mentions != null && !mentions.isEmpty()) {
             for (String mentionedUserId : mentions) {
@@ -138,12 +139,12 @@ public class CommentService {
 
         return convertToCommentResponse(savedComment);
     }
-    
+
     // Add overloaded method for backward compatibility
     public CommentResponse createComment(String postId, String userId, String content, String parentCommentId) {
         return createComment(postId, userId, content, parentCommentId, null);
     }
-    
+
     // Update the existing createComment method to call the new one
     public CommentResponse createComment(String postId, String userId, String content) {
         return createComment(postId, userId, content, null, null);
